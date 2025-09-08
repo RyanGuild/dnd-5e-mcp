@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "dnd-character": {
-      "command": "node",
-      "args": ["dist/index.js"],
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"],
       "cwd": "/Users/ryanguild/dnd-character-mcp",
       "enabled": true,
       "alwaysAllow": [
