@@ -1,4 +1,4 @@
-import { Weapon, WeaponProperty } from './types/equipment.js';
+import { Weapon, WeaponProperty } from '../types/equipment';
 
 /**
  * Comprehensive D&D 5e Weapons Database
@@ -670,7 +670,7 @@ export class WeaponHelper {
    * Get weapons with specific properties
    */
   static getWeaponsByProperty(property: WeaponProperty): Weapon[] {
-    return COMPREHENSIVE_WEAPONS.filter(weapon => (weapon.properties as WeaponProperty[]).includes(property));
+    return COMPREHENSIVE_WEAPONS.filter(weapon => (weapon.properties as unknown as WeaponProperty[]).includes(property));
   }
 
   /**
