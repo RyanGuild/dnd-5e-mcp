@@ -1,12 +1,11 @@
 import { DNDCharacter } from '../types/character';
 import { SpellManager } from '../utils/spells';
-import { ClericSpellManager } from '../utils/cleric-spells';
 
 export interface HandlerContext {
   currentCharacter: DNDCharacter | null;
-  spellManager: SpellManager | ClericSpellManager | null;
+  spellManager: SpellManager | null;
   setCurrentCharacter: (character: DNDCharacter | null) => void;
-  setSpellManager: (manager: SpellManager | ClericSpellManager | null) => void;
+  setSpellManager: (manager: SpellManager | null) => void;
 }
 
 export interface HandlerResult {

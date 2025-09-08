@@ -2,9 +2,7 @@ import { ToolModule, ToolHandler, HandlerContext, HandlerResult, createSuccessRe
 import { DNDCharacter } from '../types/character';
 import { createCharacter, calculateAbilityModifier, getHitDieForClass } from '../utils/character';
 import { saveCharacter, deleteCharacter } from '../utils/storage';
-import { SpellManager } from '../utils/spells';
-import { ClericSpellManager } from '../utils/cleric-spells';
-import { ClericCharacter } from '../utils/cleric-character';
+import { SpellManager, CasterConfig } from '../utils/spells';
 import { DIVINE_DOMAINS } from '../data/cleric';
 import { getEffectiveMaxHitPoints, getEffectiveSpeed, EXHAUSTION_EFFECTS } from '../utils/rest';
 import { validateCharacter } from '../utils/validation';
@@ -176,30 +174,20 @@ const createCharacterHandler: ToolHandler = {
     });
 
     context.setCurrentCharacter(character);
-    
-    // Initialize spell manager for wizards
-    if (character.class.name === 'Wizard') {
+
+    // Initialize spell manager for spellcasting classes
+    if (isSpellcaster(character.class.name)) {
+      const casterConfig = getCasterConfig(character, domain);
       const spellManager = new SpellManager(
         character.level,
-        character.abilityScores.intelligence.modifier,
+        casterConfig,
         character.knownSpells
       );
-      
+
       // Save the known spells back to the character
       character.knownSpells = spellManager.getAllKnownSpells();
-      
+
       context.setSpellManager(spellManager);
-    }
-    
-    // Initialize cleric character and spell manager for clerics
-    if (character.class.name === 'Cleric' && domain) {
-      try {
-        const clericCharacter = new ClericCharacter(character, domain);
-        const clericSpellManager = clericCharacter.getSpellManager();
-        context.setSpellManager(clericSpellManager);
-      } catch (error) {
-        return createErrorResult(`Error creating cleric character: ${error instanceof Error ? error.message : String(error)}`);
-      }
     }
     
     await saveCharacter(character);
@@ -329,6 +317,134 @@ const validateCharacterHandler: ToolHandler = {
     }
   }
 };
+
+// Helper function to determine if a class is a spellcaster
+function isSpellcaster(className: string): boolean {
+  const spellcastingClasses = [
+    'Wizard', 'Cleric', 'Sorcerer', 'Druid', 'Bard',
+    'Paladin', 'Ranger', 'Warlock', 'Eldritch Knight'
+  ];
+  return spellcastingClasses.includes(className);
+}
+
+// Helper function to get caster configuration for a character
+function getCasterConfig(character: DNDCharacter, domain?: string): CasterConfig {
+  const className = character.class.name;
+
+  switch (className) {
+    case 'Wizard':
+      return {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+
+    case 'Cleric':
+      return {
+        type: 'cleric',
+        spellcastingAbility: 'wisdom',
+        casterType: 'half',
+        domainSpells: domain ? getDomainSpellsForDomain(domain) : undefined
+      };
+
+    case 'Sorcerer':
+      return {
+        type: 'sorcerer',
+        spellcastingAbility: 'charisma',
+        casterType: 'third'
+      };
+
+    case 'Druid':
+      return {
+        type: 'druid',
+        spellcastingAbility: 'wisdom',
+        casterType: 'full'
+      };
+
+    case 'Bard':
+      return {
+        type: 'bard',
+        spellcastingAbility: 'charisma',
+        casterType: 'full'
+      };
+
+    case 'Paladin':
+      return {
+        type: 'paladin',
+        spellcastingAbility: 'charisma',
+        casterType: 'third'
+      };
+
+    case 'Ranger':
+      return {
+        type: 'ranger',
+        spellcastingAbility: 'wisdom',
+        casterType: 'half'
+      };
+
+    case 'Warlock':
+      return {
+        type: 'warlock',
+        spellcastingAbility: 'charisma',
+        casterType: 'pact'
+      };
+
+    case 'Eldritch Knight':
+      return {
+        type: 'wizard', // Eldritch Knights use wizard spellcasting
+        spellcastingAbility: 'intelligence',
+        casterType: 'third'
+      };
+
+    default:
+      // Default to wizard configuration
+      return {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+  }
+}
+
+// Helper function to get domain spells for a given domain
+function getDomainSpellsForDomain(domainName: string): { [level: number]: string[] } {
+  // This would ideally come from the domain data
+  // For now, return some default domain spells
+  switch (domainName.toLowerCase()) {
+    case 'life':
+      return {
+        1: ['Bless', 'Cure Wounds'],
+        2: ['Lesser Restoration'],
+        3: ['Spirit Guardians'],
+        4: ['Guardian of Faith'],
+        5: ['Greater Restoration']
+      };
+    case 'war':
+      return {
+        1: ['Divine Favor', 'Shield of Faith'],
+        2: ['Spiritual Weapon'],
+        3: ['Crusader\'s Mantle'],
+        4: ['Freedom of Movement'],
+        5: ['Flame Strike']
+      };
+    case 'nature':
+      return {
+        1: ['Animal Friendship', 'Speak with Animals'],
+        2: ['Barkskin'],
+        3: ['Spirit Guardians'],
+        4: ['Guardian of Nature'],
+        5: ['Insect Plague']
+      };
+    default:
+      return {
+        1: ['Bless', 'Cure Wounds'],
+        2: ['Spiritual Weapon'],
+        3: ['Spirit Guardians'],
+        4: ['Guardian of Faith'],
+        5: ['Flame Strike']
+      };
+  }
+}
 
 // Character module
 export const characterModule: ToolModule = {

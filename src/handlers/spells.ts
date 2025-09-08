@@ -1,6 +1,5 @@
 import { ToolModule, ToolHandler, HandlerContext, HandlerResult, createSuccessResult, createErrorResult } from './types';
 import { SpellManager } from '../utils/spells';
-import { ClericSpellManager } from '../utils/cleric-spells';
 import { saveCharacter } from '../utils/storage';
 import { z } from 'zod';
 
@@ -542,8 +541,8 @@ const getSpellcastingInfoHandler: ToolHandler = {
 
     const activeSpellManager = context.spellManager;
     const modifier = activeSpellManager.getSpellcastingModifier();
-    const saveDC = activeSpellManager.getSpellSaveDC();
-    const attackBonus = activeSpellManager.getSpellAttackBonus();
+    const saveDC = activeSpellManager.getSpellSaveDC(modifier);
+    const attackBonus = activeSpellManager.getSpellAttackBonus(modifier);
     
     let result = `Spellcasting Info for ${context.currentCharacter.name}:\n\n`;
     result += `Spellcasting Ability Modifier: ${modifier >= 0 ? '+' : ''}${modifier}\n`;

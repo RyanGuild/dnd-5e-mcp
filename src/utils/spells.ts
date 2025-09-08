@@ -1,4 +1,6 @@
 import { WIZARD_SPELLS } from '../data/wizard-spells';
+import { CLERIC_SPELLS } from '../data/cleric-spells';
+import { CLERIC_PROGRESSION, calculateSpellsPrepared } from '../data/cleric';
 
 export interface Spell {
   name: string;
@@ -65,6 +67,17 @@ export interface Spellbook {
   level9: Spell[];
 }
 
+// Caster Types
+export type CasterType = 'wizard' | 'cleric' | 'sorcerer' | 'druid' | 'bard' | 'paladin' | 'ranger' | 'warlock';
+
+export interface CasterConfig {
+  type: CasterType;
+  spellcastingAbility: 'intelligence' | 'wisdom' | 'charisma';
+  casterType: 'full' | 'half' | 'third' | 'pact';
+  domainSpells?: { [level: number]: string[] };
+  knownSpellsLimit?: boolean; // true for wizards, false for clerics/druids
+}
+
 // D&D 5e Wizard Spell Slots Table
 export const WIZARD_SPELL_SLOTS: { [level: number]: SpellSlots } = {
   1: { level1: 2, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
@@ -88,6 +101,81 @@ export const WIZARD_SPELL_SLOTS: { [level: number]: SpellSlots } = {
   19: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 3, level6: 2, level7: 1, level8: 1, level9: 1 },
   20: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 3, level6: 2, level7: 2, level8: 1, level9: 1 }
 };
+
+// D&D 5e Cleric Spell Slots Table
+export const CLERIC_SPELL_SLOTS: { [level: number]: SpellSlots } = {
+  1: { level1: 2, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  2: { level1: 3, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  3: { level1: 4, level2: 2, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  4: { level1: 4, level2: 3, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  5: { level1: 4, level2: 3, level3: 2, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  6: { level1: 4, level2: 3, level3: 3, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  7: { level1: 4, level2: 3, level3: 3, level4: 1, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  8: { level1: 4, level2: 3, level3: 3, level4: 2, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+  9: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 1, level6: 0, level7: 0, level8: 0, level9: 0 },
+  10: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 0, level7: 0, level8: 0, level9: 0 },
+  11: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 1, level7: 0, level8: 0, level9: 0 },
+  12: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 1, level7: 0, level8: 0, level9: 0 },
+  13: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 1, level7: 1, level8: 0, level9: 0 },
+  14: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 1, level7: 1, level8: 0, level9: 0 },
+  15: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 1, level7: 1, level8: 1, level9: 0 },
+  16: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 1, level7: 1, level8: 1, level9: 0 },
+  17: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 2, level6: 1, level7: 1, level8: 1, level9: 1 },
+  18: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 3, level6: 1, level7: 1, level8: 1, level9: 1 },
+  19: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 3, level6: 2, level7: 1, level8: 1, level9: 1 },
+  20: { level1: 4, level2: 3, level3: 3, level4: 3, level5: 3, level6: 2, level7: 2, level8: 1, level9: 1 }
+};
+
+// Helper function to get spell slots for different caster types
+export function getSpellSlotsForCaster(casterType: 'full' | 'half' | 'third' | 'pact', level: number): SpellSlots {
+  switch (casterType) {
+    case 'full':
+      return WIZARD_SPELL_SLOTS[level] || WIZARD_SPELL_SLOTS[20];
+    case 'half':
+      return CLERIC_SPELL_SLOTS[level] || CLERIC_SPELL_SLOTS[20];
+    case 'third':
+      // Third casters (like Sorcerer) have fewer slots
+      const fullSlots = WIZARD_SPELL_SLOTS[level] || WIZARD_SPELL_SLOTS[20];
+      return {
+        level1: Math.max(0, fullSlots.level1 - 1),
+        level2: fullSlots.level2,
+        level3: Math.max(0, fullSlots.level3 - 1),
+        level4: fullSlots.level4,
+        level5: Math.max(0, fullSlots.level5 - 1),
+        level6: fullSlots.level6,
+        level7: Math.max(0, fullSlots.level7 - 1),
+        level8: fullSlots.level8,
+        level9: Math.max(0, fullSlots.level9 - 1)
+      };
+    case 'pact':
+      // Warlock pact magic has different slot progression
+      const pactSlots: { [level: number]: SpellSlots } = {
+        1: { level1: 1, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        2: { level1: 2, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        3: { level1: 0, level2: 2, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        4: { level1: 0, level2: 3, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        5: { level1: 0, level2: 0, level3: 2, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        6: { level1: 0, level2: 0, level3: 3, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        7: { level1: 0, level2: 0, level3: 0, level4: 2, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        8: { level1: 0, level2: 0, level3: 0, level4: 3, level5: 0, level6: 0, level7: 0, level8: 0, level9: 0 },
+        9: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 2, level6: 0, level7: 0, level8: 0, level9: 0 },
+        10: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 3, level6: 0, level7: 0, level8: 0, level9: 0 },
+        11: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 2, level7: 0, level8: 0, level9: 0 },
+        12: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 3, level7: 0, level8: 0, level9: 0 },
+        13: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 2, level8: 0, level9: 0 },
+        14: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 3, level8: 0, level9: 0 },
+        15: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 2, level9: 0 },
+        16: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 3, level9: 0 },
+        17: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 2 },
+        18: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 3 },
+        19: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 3 },
+        20: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, level6: 0, level7: 0, level8: 0, level9: 3 }
+      };
+      return pactSlots[level] || pactSlots[20];
+    default:
+      return WIZARD_SPELL_SLOTS[level] || WIZARD_SPELL_SLOTS[20];
+  }
+}
 
 // Wizard spell learning progression - cantrips known and spells learned per level
 export const WIZARD_SPELL_LEARNING: { [level: number]: { cantripsKnown: number; spellsLearned: number } } = {
@@ -115,37 +203,39 @@ export const WIZARD_SPELL_LEARNING: { [level: number]: { cantripsKnown: number; 
 
 export class SpellManager {
   private spellbook: Spellbook; // Full spell database
-  private knownSpells: KnownSpells; // Spells the wizard knows
+  private knownSpells: KnownSpells; // Spells the character knows (for wizards) or can access (for clerics/druids)
   private preparedSpells: PreparedSpells;
   private currentSlots: SpellSlots;
   private maxSlots: SpellSlots;
   private characterLevel: number;
-  private intelligenceModifier: number;
+  private casterConfig: CasterConfig;
 
-  constructor(characterLevel: number, intelligenceModifier: number, existingKnownSpells?: KnownSpells) {
+  constructor(characterLevel: number, casterConfig: CasterConfig, existingKnownSpells?: KnownSpells) {
     this.characterLevel = characterLevel;
-    this.intelligenceModifier = intelligenceModifier;
-    
-    // Level 0 wizards have no spell slots
+    this.casterConfig = casterConfig;
+
+    // Level 0 casters have no spell slots
     if (characterLevel === 0) {
       this.maxSlots = {
         level1: 0, level2: 0, level3: 0, level4: 0, level5: 0,
         level6: 0, level7: 0, level8: 0, level9: 0
       };
     } else {
-      this.maxSlots = WIZARD_SPELL_SLOTS[characterLevel] || WIZARD_SPELL_SLOTS[20]; // Fallback to level 20
+      this.maxSlots = getSpellSlotsForCaster(casterConfig.casterType, characterLevel);
     }
-    
+
     this.currentSlots = { ...this.maxSlots };
-    this.spellbook = { ...WIZARD_SPELLS }; // Full database of available spells
-    
+
+    // Initialize spellbook based on caster type
+    this.spellbook = this.initializeSpellbook();
+
     // Initialize known spells
     if (existingKnownSpells) {
       this.knownSpells = { ...existingKnownSpells };
     } else {
       this.knownSpells = this.initializeStartingSpells();
     }
-    
+
     this.preparedSpells = {
       cantrips: [],
       level1: [],
@@ -158,9 +248,43 @@ export class SpellManager {
       level8: [],
       level9: []
     };
+
+    // Add domain spells to prepared spells for clerics
+    if (casterConfig.domainSpells) {
+      this.addDomainSpellsToPrepared();
+    }
   }
 
-  // Initialize starting spells for a new wizard
+  private initializeSpellbook(): Spellbook {
+    switch (this.casterConfig.type) {
+      case 'wizard':
+        return { ...WIZARD_SPELLS };
+      case 'cleric':
+        return { ...CLERIC_SPELLS };
+      case 'sorcerer':
+        // For now, use wizard spells (sorcerers have similar spell lists)
+        return { ...WIZARD_SPELLS };
+      case 'druid':
+        // For now, use cleric spells (druids have similar divine magic)
+        return { ...CLERIC_SPELLS };
+      case 'bard':
+        // For now, use wizard spells (bards have similar spell lists)
+        return { ...WIZARD_SPELLS };
+      case 'paladin':
+        // For now, use cleric spells (paladins have divine magic)
+        return { ...CLERIC_SPELLS };
+      case 'ranger':
+        // For now, use wizard spells (rangers have similar spell lists)
+        return { ...WIZARD_SPELLS };
+      case 'warlock':
+        // For now, use wizard spells (warlocks have similar spell lists)
+        return { ...WIZARD_SPELLS };
+      default:
+        return { ...WIZARD_SPELLS };
+    }
+  }
+
+  // Initialize starting spells for different caster types
   private initializeStartingSpells(): KnownSpells {
     const knownSpells: KnownSpells = {
       cantrips: [],
@@ -176,22 +300,134 @@ export class SpellManager {
     };
 
     if (this.characterLevel >= 1) {
-      const progression = WIZARD_SPELL_LEARNING[1];
-      
-      // Start with 3 cantrips (or more if higher level)
-      const cantripsToKnow = Math.min(progression.cantripsKnown, this.spellbook.cantrips.length);
-      for (let i = 0; i < cantripsToKnow && i < this.spellbook.cantrips.length; i++) {
-        knownSpells.cantrips.push(this.spellbook.cantrips[i].name);
-      }
-      
-      // Start with 6 1st level spells
-      const spellsToKnow = Math.min(progression.spellsLearned, this.spellbook.level1.length);
-      for (let i = 0; i < spellsToKnow && i < this.spellbook.level1.length; i++) {
-        knownSpells.level1.push(this.spellbook.level1[i].name);
+      switch (this.casterConfig.type) {
+        case 'wizard':
+          this.initializeWizardSpells(knownSpells);
+          break;
+        case 'cleric':
+          this.initializeClericSpells(knownSpells);
+          break;
+        case 'sorcerer':
+          this.initializeSorcererSpells(knownSpells);
+          break;
+        case 'druid':
+          this.initializeDruidSpells(knownSpells);
+          break;
+        case 'bard':
+          this.initializeBardSpells(knownSpells);
+          break;
+        case 'paladin':
+          this.initializePaladinSpells(knownSpells);
+          break;
+        case 'ranger':
+          this.initializeRangerSpells(knownSpells);
+          break;
+        case 'warlock':
+          this.initializeWarlockSpells(knownSpells);
+          break;
+        default:
+          this.initializeWizardSpells(knownSpells);
       }
     }
 
     return knownSpells;
+  }
+
+  private initializeWizardSpells(knownSpells: KnownSpells): void {
+    const progression = WIZARD_SPELL_LEARNING[1];
+
+    // Start with cantrips
+    const cantripsToKnow = Math.min(progression.cantripsKnown, this.spellbook.cantrips.length);
+    for (let i = 0; i < cantripsToKnow && i < this.spellbook.cantrips.length; i++) {
+      knownSpells.cantrips.push(this.spellbook.cantrips[i].name);
+    }
+
+    // Start with 1st level spells
+    const spellsToKnow = Math.min(progression.spellsLearned, this.spellbook.level1.length);
+    for (let i = 0; i < spellsToKnow && i < this.spellbook.level1.length; i++) {
+      knownSpells.level1.push(this.spellbook.level1[i].name);
+    }
+  }
+
+  private initializeClericSpells(knownSpells: KnownSpells): void {
+    // Clerics don't have "known" spells - they can access all spells in their spellbook
+    // They prepare spells instead
+    // For initialization, we'll leave knownSpells empty since clerics prepare from the full list
+  }
+
+  private initializeSorcererSpells(knownSpells: KnownSpells): void {
+    // Sorcerers start with 4 cantrips and 2 1st level spells
+    const cantripsToKnow = Math.min(4, this.spellbook.cantrips.length);
+    for (let i = 0; i < cantripsToKnow && i < this.spellbook.cantrips.length; i++) {
+      knownSpells.cantrips.push(this.spellbook.cantrips[i].name);
+    }
+
+    const spellsToKnow = Math.min(2, this.spellbook.level1.length);
+    for (let i = 0; i < spellsToKnow && i < this.spellbook.level1.length; i++) {
+      knownSpells.level1.push(this.spellbook.level1[i].name);
+    }
+  }
+
+  private initializeDruidSpells(knownSpells: KnownSpells): void {
+    // Druids start with 2 cantrips and prepare spells like clerics
+    const cantripsToKnow = Math.min(2, this.spellbook.cantrips.length);
+    for (let i = 0; i < cantripsToKnow && i < this.spellbook.cantrips.length; i++) {
+      knownSpells.cantrips.push(this.spellbook.cantrips[i].name);
+    }
+  }
+
+  private initializeBardSpells(knownSpells: KnownSpells): void {
+    // Bards start with 2 cantrips and know spells like wizards
+    const cantripsToKnow = Math.min(2, this.spellbook.cantrips.length);
+    for (let i = 0; i < cantripsToKnow && i < this.spellbook.cantrips.length; i++) {
+      knownSpells.cantrips.push(this.spellbook.cantrips[i].name);
+    }
+
+    const spellsToKnow = Math.min(4, this.spellbook.level1.length);
+    for (let i = 0; i < spellsToKnow && i < this.spellbook.level1.length; i++) {
+      knownSpells.level1.push(this.spellbook.level1[i].name);
+    }
+  }
+
+  private initializePaladinSpells(knownSpells: KnownSpells): void {
+    // Paladins prepare spells like clerics
+    // For now, leave empty
+  }
+
+  private initializeRangerSpells(knownSpells: KnownSpells): void {
+    // Rangers prepare spells like clerics but have limited spell access
+    // For now, leave empty
+  }
+
+  private initializeWarlockSpells(knownSpells: KnownSpells): void {
+    // Warlocks start with 2 cantrips and know spells
+    const cantripsToKnow = Math.min(2, this.spellbook.cantrips.length);
+    for (let i = 0; i < cantripsToKnow && i < this.spellbook.cantrips.length; i++) {
+      knownSpells.cantrips.push(this.spellbook.cantrips[i].name);
+    }
+
+    const spellsToKnow = Math.min(2, this.spellbook.level1.length);
+    for (let i = 0; i < spellsToKnow && i < this.spellbook.level1.length; i++) {
+      knownSpells.level1.push(this.spellbook.level1[i].name);
+    }
+  }
+
+  // Add domain spells to prepared spells (they don't count against the limit)
+  private addDomainSpellsToPrepared(): void {
+    if (!this.casterConfig.domainSpells) return;
+
+    for (const [levelStr, spells] of Object.entries(this.casterConfig.domainSpells)) {
+      const level = parseInt(levelStr);
+      if (level <= this.characterLevel) {
+        const levelKey = `level${level}` as keyof PreparedSpells;
+        // Domain spells are always prepared and don't count against the limit
+        spells.forEach(spellName => {
+          if (!this.preparedSpells[levelKey].includes(spellName)) {
+            this.preparedSpells[levelKey].push(spellName);
+          }
+        });
+      }
+    }
   }
 
   // Get available spell slots for a specific level
@@ -244,21 +480,60 @@ export class SpellManager {
     }
   }
 
-  // Get spells available for preparation (only known spells)
+  // Get spells available for preparation (varies by caster type)
   getAvailableSpells(level: number): Spell[] {
     const levelKey = level === 0 ? 'cantrips' : `level${level}` as keyof Spellbook;
-    const knownSpellNames = this.knownSpells[levelKey] || [];
-    const allSpellsAtLevel = this.spellbook[levelKey] || [];
-    
-    return allSpellsAtLevel.filter(spell => knownSpellNames.includes(spell.name));
+
+    switch (this.casterConfig.type) {
+      case 'wizard':
+      case 'sorcerer':
+      case 'bard':
+      case 'warlock':
+        // These casters have "known" spells
+        const knownSpellNames = this.knownSpells[levelKey] || [];
+        const allSpellsAtLevel = this.spellbook[levelKey] || [];
+        return allSpellsAtLevel.filter(spell => knownSpellNames.includes(spell.name));
+
+      case 'cleric':
+      case 'druid':
+      case 'paladin':
+      case 'ranger':
+        // These casters prepare from the full spellbook
+        return this.spellbook[levelKey] || [];
+
+      default:
+        return this.spellbook[levelKey] || [];
+    }
   }
 
-  // Prepare spells (limited by Intelligence modifier + wizard level)
+  // Prepare spells (behavior varies by caster type)
   prepareSpells(spellNames: string[], level: number): boolean {
-    const maxPrepared = this.intelligenceModifier + this.characterLevel;
     const levelKey = level === 0 ? 'cantrips' : `level${level}` as keyof PreparedSpells;
+
+    switch (this.casterConfig.type) {
+      case 'wizard':
+        return this.prepareSpellsAsWizard(spellNames, level, levelKey);
+      case 'cleric':
+        return this.prepareSpellsAsCleric(spellNames, level, levelKey);
+      case 'druid':
+        return this.prepareSpellsAsDruid(spellNames, level, levelKey);
+      case 'paladin':
+        return this.prepareSpellsAsPaladin(spellNames, level, levelKey);
+      case 'ranger':
+        return this.prepareSpellsAsRanger(spellNames, level, levelKey);
+      default:
+        // For sorcerer, bard, warlock - they don't prepare spells, they know them
+        return false;
+    }
+  }
+
+  private prepareSpellsAsWizard(spellNames: string[], level: number, levelKey: keyof PreparedSpells): boolean {
+    // For wizard preparation, we need to get the ability modifier from somewhere
+    // This will need to be passed in from the character
+    const spellcastingModifier = 0; // Placeholder - will be updated when character integration is complete
+    const maxPrepared = spellcastingModifier + this.characterLevel;
     const knownSpellNames = this.knownSpells[levelKey] || [];
-    
+
     // Check if all spells are known by the wizard
     const validSpells = spellNames.filter(name => knownSpellNames.includes(name));
 
@@ -277,13 +552,125 @@ export class SpellManager {
       .filter((spells, index) => index > 0) // Exclude cantrips
       .flat()
       .length;
-    
+
     if (totalPrepared + validSpells.length > maxPrepared) {
       return false; // Would exceed preparation limit
     }
 
     this.preparedSpells[levelKey] = validSpells;
     return true;
+  }
+
+  private prepareSpellsAsCleric(spellNames: string[], level: number, levelKey: keyof PreparedSpells): boolean {
+    const spellcastingModifier = this.getSpellcastingModifier();
+    const maxPrepared = calculateSpellsPrepared(this.characterLevel, spellcastingModifier);
+    const availableSpells = this.getAvailableSpells(level);
+
+    // Check if all spells exist in spellbook
+    const validSpells = spellNames.filter(name =>
+      availableSpells.some(spell => spell.name === name)
+    );
+
+    if (validSpells.length !== spellNames.length) {
+      return false; // Some spells not found
+    }
+
+    // For cantrips, check against cantrips known limit
+    if (level === 0) {
+      const cantripsKnown = CLERIC_PROGRESSION[this.characterLevel]?.cantripsKnown || 3;
+      if (validSpells.length <= cantripsKnown) {
+        this.preparedSpells[levelKey] = validSpells;
+        return true;
+      }
+      return false;
+    }
+
+    // For other levels, check if total prepared spells don't exceed limit
+    // (excluding domain spells which are always prepared)
+    const currentPrepared = this.getCurrentPreparedCount();
+    const domainSpellsAtLevel = this.casterConfig.domainSpells?.[level] || [];
+    const currentAtLevel = this.preparedSpells[levelKey].filter(spell =>
+      !domainSpellsAtLevel.includes(spell)
+    );
+
+    const newNonDomainSpells = validSpells.filter(spell =>
+      !domainSpellsAtLevel.includes(spell)
+    );
+
+    const newTotal = currentPrepared - currentAtLevel.length + newNonDomainSpells.length;
+
+    if (newTotal <= maxPrepared) {
+      // Keep domain spells and add new spells
+      const domainSpellsToKeep = this.preparedSpells[levelKey].filter(spell =>
+        domainSpellsAtLevel.includes(spell)
+      );
+      this.preparedSpells[levelKey] = [...domainSpellsToKeep, ...validSpells];
+      return true;
+    }
+
+    return false;
+  }
+
+  private prepareSpellsAsDruid(spellNames: string[], level: number, levelKey: keyof PreparedSpells): boolean {
+    // Druids prepare spells similar to clerics
+    return this.prepareSpellsAsCleric(spellNames, level, levelKey);
+  }
+
+  private prepareSpellsAsPaladin(spellNames: string[], level: number, levelKey: keyof PreparedSpells): boolean {
+    // Paladins prepare spells similar to clerics but have different limits
+    const spellcastingModifier = this.getSpellcastingModifier();
+    const paladinPreparedLimit = Math.max(1, spellcastingModifier + Math.floor(this.characterLevel / 2));
+    const availableSpells = this.getAvailableSpells(level);
+
+    // Check if all spells exist in spellbook
+    const validSpells = spellNames.filter(name =>
+      availableSpells.some(spell => spell.name === name)
+    );
+
+    if (validSpells.length !== spellNames.length) {
+      return false; // Some spells not found
+    }
+
+    // For cantrips, limited number
+    if (level === 0) {
+      if (validSpells.length <= 2) { // Paladins know 2 cantrips
+        this.preparedSpells[levelKey] = validSpells;
+        return true;
+      }
+      return false;
+    }
+
+    // For other levels, check prepared limit
+    const currentPrepared = Object.values(this.preparedSpells)
+      .filter((spells, index) => index > 0) // Exclude cantrips
+      .flat()
+      .length;
+
+    if (currentPrepared + validSpells.length <= paladinPreparedLimit) {
+      this.preparedSpells[levelKey] = validSpells;
+      return true;
+    }
+
+    return false;
+  }
+
+  private prepareSpellsAsRanger(spellNames: string[], level: number, levelKey: keyof PreparedSpells): boolean {
+    // Rangers prepare spells similar to paladins
+    return this.prepareSpellsAsPaladin(spellNames, level, levelKey);
+  }
+
+  private getCurrentPreparedCount(): number {
+    let count = 0;
+    for (let level = 1; level <= 9; level++) {
+      const levelKey = `level${level}` as keyof PreparedSpells;
+      const prepared = this.preparedSpells[levelKey];
+      const domainSpellsAtLevel = this.casterConfig.domainSpells?.[level] || [];
+
+      // Count only non-domain spells
+      const nonDomainSpells = prepared.filter(spell => !domainSpellsAtLevel.includes(spell));
+      count += nonDomainSpells.length;
+    }
+    return count;
   }
 
   // Get prepared spells for a specific level
@@ -340,11 +727,27 @@ export class SpellManager {
     return { ...this.knownSpells };
   }
 
-  // Learn a new spell (from leveling up, copying from scrolls, etc.)
+  // Learn a new spell (behavior varies by caster type)
   learnSpell(spellName: string, level: number): boolean {
+    switch (this.casterConfig.type) {
+      case 'wizard':
+        return this.learnSpellAsWizard(spellName, level);
+      case 'sorcerer':
+        return this.learnSpellAsSorcerer(spellName, level);
+      case 'bard':
+        return this.learnSpellAsBard(spellName, level);
+      case 'warlock':
+        return this.learnSpellAsWarlock(spellName, level);
+      default:
+        // Clerics, druids, paladins, rangers don't "learn" spells - they prepare them
+        return false;
+    }
+  }
+
+  private learnSpellAsWizard(spellName: string, level: number): boolean {
     const levelKey = level === 0 ? 'cantrips' : `level${level}` as keyof KnownSpells;
     const allSpellsAtLevel = this.spellbook[levelKey] || [];
-    
+
     // Check if spell exists in the spellbook
     const spellExists = allSpellsAtLevel.some(spell => spell.name === spellName);
     if (!spellExists) {
@@ -374,6 +777,107 @@ export class SpellManager {
     }
 
     // Learn the spell
+    this.knownSpells[levelKey].push(spellName);
+    return true;
+  }
+
+  private learnSpellAsSorcerer(spellName: string, level: number): boolean {
+    const levelKey = level === 0 ? 'cantrips' : `level${level}` as keyof KnownSpells;
+    const allSpellsAtLevel = this.spellbook[levelKey] || [];
+
+    // Check if spell exists in the spellbook
+    const spellExists = allSpellsAtLevel.some(spell => spell.name === spellName);
+    if (!spellExists) {
+      return false; // Spell doesn't exist in spellbook
+    }
+
+    // Check if already known
+    if (this.knownSpells[levelKey].includes(spellName)) {
+      return false; // Already known
+    }
+
+    // Sorcerers can learn spells up to certain levels based on character level
+    if (level > 0) {
+      const maxSpellLevel = Math.min(9, Math.ceil(this.characterLevel / 2));
+      if (level > maxSpellLevel) {
+        return false;
+      }
+    }
+
+    // Sorcerers have limits on cantrips and spells known
+    if (level === 0) {
+      const cantripsKnown = Math.floor((this.characterLevel + 1) / 2) + 3; // 4 at level 1, up to 8 at level 20
+      if (this.knownSpells.cantrips.length >= cantripsKnown) {
+        return false;
+      }
+    } else {
+      const spellsKnown = Math.floor(this.characterLevel / 2) + 1; // 2 at level 1, up to 16 at level 20
+      const totalSpells = Object.values(this.knownSpells).filter((spells, index) => index > 0).flat().length;
+      if (totalSpells >= spellsKnown) {
+        return false;
+      }
+    }
+
+    this.knownSpells[levelKey].push(spellName);
+    return true;
+  }
+
+  private learnSpellAsBard(spellName: string, level: number): boolean {
+    const levelKey = level === 0 ? 'cantrips' : `level${level}` as keyof KnownSpells;
+    const allSpellsAtLevel = this.spellbook[levelKey] || [];
+
+    // Check if spell exists in the spellbook
+    const spellExists = allSpellsAtLevel.some(spell => spell.name === spellName);
+    if (!spellExists) {
+      return false; // Spell doesn't exist in spellbook
+    }
+
+    // Check if already known
+    if (this.knownSpells[levelKey].includes(spellName)) {
+      return false; // Already known
+    }
+
+    // Bards learn spells up to certain levels
+    if (level > 0) {
+      const maxSpellLevel = Math.min(9, Math.ceil(this.characterLevel / 2));
+      if (level > maxSpellLevel) {
+        return false;
+      }
+    }
+
+    this.knownSpells[levelKey].push(spellName);
+    return true;
+  }
+
+  private learnSpellAsWarlock(spellName: string, level: number): boolean {
+    const levelKey = level === 0 ? 'cantrips' : `level${level}` as keyof KnownSpells;
+    const allSpellsAtLevel = this.spellbook[levelKey] || [];
+
+    // Check if spell exists in the spellbook
+    const spellExists = allSpellsAtLevel.some(spell => spell.name === spellName);
+    if (!spellExists) {
+      return false; // Spell doesn't exist in spellbook
+    }
+
+    // Check if already known
+    if (this.knownSpells[levelKey].includes(spellName)) {
+      return false; // Already known
+    }
+
+    // Warlocks have limited spells known
+    if (level === 0) {
+      // Warlocks know 2 cantrips
+      if (this.knownSpells.cantrips.length >= 2) {
+        return false;
+      }
+    } else {
+      // Warlocks know spells equal to character level + 1
+      const totalSpells = Object.values(this.knownSpells).filter((spells, index) => index > 0).flat().length;
+      if (totalSpells >= this.characterLevel + 1) {
+        return false;
+      }
+    }
+
     this.knownSpells[levelKey].push(spellName);
     return true;
   }
@@ -512,18 +1016,26 @@ export class SpellManager {
     }
   }
 
-  // Get spellcasting ability modifier
-  getSpellcastingModifier(): number {
-    return this.intelligenceModifier;
+  // Get spellcasting ability modifier (needs ability modifier passed in)
+  getSpellcastingModifier(abilityModifier?: number): number {
+    if (abilityModifier !== undefined) {
+      return abilityModifier;
+    }
+
+    // This method now requires the ability modifier to be passed in
+    // since the SpellManager no longer stores the ability modifier directly
+    throw new Error('Ability modifier must be provided to getSpellcastingModifier');
   }
 
-  // Get spell save DC
-  getSpellSaveDC(): number {
-    return 8 + this.intelligenceModifier + Math.ceil(this.characterLevel / 4) + 1; // 8 + ability mod + prof bonus
+  // Get spell save DC (needs ability modifier passed in)
+  getSpellSaveDC(abilityModifier: number): number {
+    const proficiencyBonus = Math.ceil(this.characterLevel / 4) + 1;
+    return 8 + abilityModifier + proficiencyBonus;
   }
 
-  // Get spell attack bonus
-  getSpellAttackBonus(): number {
-    return this.intelligenceModifier + Math.ceil(this.characterLevel / 4) + 1; // ability mod + prof bonus
+  // Get spell attack bonus (needs ability modifier passed in)
+  getSpellAttackBonus(abilityModifier: number): number {
+    const proficiencyBonus = Math.ceil(this.characterLevel / 4) + 1;
+    return abilityModifier + proficiencyBonus;
   }
 }

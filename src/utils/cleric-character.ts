@@ -1,20 +1,21 @@
 // Cleric Character Implementation with Divine Features
 
 import { DNDCharacter } from '../types/character.js';
-import { ClericSpellManager } from './cleric-spells.js';
-import { 
-  DIVINE_DOMAINS, 
-  DivineDomain, 
-  CLERIC_PROGRESSION, 
+import { SpellManager, CasterConfig } from './spells.js';
+import {
+  DIVINE_DOMAINS,
+  DivineDomain,
+  CLERIC_PROGRESSION,
   CLERIC_PROFICIENCIES,
   getChannelDivinityUses,
   getDestroyUndeadCR
 } from '../data/cleric.js';
+import { z } from 'zod';
 
 export interface ClericCharacterData {
   character: DNDCharacter;
   domain: DivineDomain;
-  spellManager: ClericSpellManager;
+  spellManager: SpellManager;
   channelDivinityUses: {
     current: number;
     maximum: number;
@@ -27,19 +28,32 @@ export class ClericCharacter {
   private data: ClericCharacterData;
 
   constructor(character: DNDCharacter, domainName: string) {
-    if (character.class.name !== 'Cleric') {
-      throw new Error('Character must be a Cleric');
+    // Validate character is a cleric using Zod
+    const clericValidation = ClericCharacter.ClericValidationSchema.safeParse(character);
+    if (!clericValidation.success) {
+      const errorMessages = clericValidation.error.issues.map(issue =>
+        `${issue.path.join('.')}: ${issue.message}`
+      );
+      throw new Error(`Invalid cleric character: ${errorMessages.join(', ')}`);
     }
 
+    // Validate domain exists
     const domain = DIVINE_DOMAINS[domainName];
     if (!domain) {
       throw new Error(`Unknown divine domain: ${domainName}`);
     }
 
-    const spellManager = new ClericSpellManager(
+    const casterConfig: CasterConfig = {
+      type: 'cleric',
+      spellcastingAbility: 'wisdom',
+      casterType: 'half',
+      domainSpells: domain.domainSpells
+    };
+
+    const spellManager = new SpellManager(
       character.level,
-      character.abilityScores.wisdom.modifier,
-      domain.domainSpells
+      casterConfig,
+      character.knownSpells
     );
 
     this.data = {
@@ -143,7 +157,7 @@ export class ClericCharacter {
   }
 
   // Get spell manager
-  getSpellManager(): ClericSpellManager {
+  getSpellManager(): SpellManager {
     return this.data.spellManager;
   }
 
@@ -236,8 +250,8 @@ export class ClericCharacter {
     // Update proficiency bonus
     this.data.character.proficiencyBonus = Math.ceil(newLevel / 4) + 1;
 
-    // Update spell manager
-    this.data.spellManager.updateLevel(newLevel);
+    // Update spell manager level
+    this.data.spellManager.levelUp(newLevel);
 
     // Update Channel Divinity uses
     this.data.channelDivinityUses.maximum = getChannelDivinityUses(newLevel);
@@ -263,7 +277,8 @@ export class ClericCharacter {
   // Update Wisdom modifier (affects spellcasting)
   updateWisdomModifier(newModifier: number): void {
     this.data.character.abilityScores.wisdom.modifier = newModifier;
-    this.data.spellManager.updateWisdomModifier(newModifier);
+    // Note: SpellManager doesn't have a method to update ability modifier directly
+    // The ability modifier is passed when calling spell-related methods
   }
 
   // Get class features for current level
@@ -310,21 +325,32 @@ export class ClericCharacter {
     maxSpellsPrepared: number;
   } {
     const spellManager = this.data.spellManager;
-    const preparationSummary = spellManager.getPreparationSummary();
+    const wisdomModifier = this.data.character.abilityScores.wisdom.modifier;
+
+    // Get prepared spells count
+    const allPrepared = spellManager.getAllPreparedSpells();
+    const cantripsPrepared = allPrepared.cantrips?.length || 0;
+    const spellsPrepared = Object.values(allPrepared).filter((spells, index) =>
+      index > 0 && Array.isArray(spells)
+    ).flat().length;
+
+    // Get max spells prepared (Wisdom modifier + level for clerics)
+    const maxSpellsPrepared = wisdomModifier + this.data.character.level;
 
     return {
       spellcastingAbility: 'Wisdom',
-      spellSaveDC: spellManager.getSpellSaveDC(),
-      spellAttackBonus: spellManager.getSpellAttackBonus(),
-      cantripsKnown: preparationSummary.cantripsKnown,
-      spellsPrepared: preparationSummary.spellsPrepared,
-      maxSpellsPrepared: preparationSummary.spellsMaximum
+      spellSaveDC: spellManager.getSpellSaveDC(wisdomModifier),
+      spellAttackBonus: spellManager.getSpellAttackBonus(wisdomModifier),
+      cantripsKnown: cantripsPrepared,
+      spellsPrepared: spellsPrepared,
+      maxSpellsPrepared: maxSpellsPrepared
     };
   }
 
   // Get domain spells for display
   getDomainSpells(): { [level: number]: string[] } {
-    return this.data.spellManager.getDomainSpells();
+    // Return domain spells from the domain configuration
+    return this.data.domain.domainSpells || {};
   }
 
   // Perform a short rest
@@ -377,45 +403,49 @@ export class ClericCharacter {
     };
   }
 
-  // Validate cleric character requirements
+  // Zod schema for cleric character validation
+  static readonly ClericValidationSchema = z.object({
+    class: z.object({
+      name: z.literal('Cleric'),
+      hitDie: z.literal(8),
+      spellcastingAbility: z.literal('wisdom')
+    }),
+    savingThrows: z.array(z.object({
+      ability: z.string(),
+      proficient: z.boolean()
+    })).refine((saves) => {
+      const wisdomSave = saves.find(st => st.ability === 'wisdom');
+      const charismaSave = saves.find(st => st.ability === 'charisma');
+      return wisdomSave?.proficient && charismaSave?.proficient;
+    }, {
+      message: 'Clerics must be proficient in Wisdom and Charisma saving throws'
+    }),
+    equipmentProficiencies: z.array(z.string()).refine((profs) => {
+      const required = ['simple', 'light', 'medium', 'shield'];
+      return required.every(prof => profs.includes(prof));
+    }, {
+      message: 'Clerics must be proficient in simple weapons, light armor, medium armor, and shields'
+    })
+  });
+
+  // Validate cleric character requirements using Zod
   static validateClericCharacter(character: DNDCharacter): {
     valid: boolean;
     errors: string[];
   } {
-    const errors: string[] = [];
+    const validation = this.ClericValidationSchema.safeParse(character);
 
-    // Check class
-    if (character.class.name !== 'Cleric') {
-      errors.push('Character must be a Cleric');
-    }
-
-    // Check hit die
-    if (character.class.hitDie !== 8) {
-      errors.push('Cleric hit die must be d8');
+    if (validation.success) {
+      return { valid: true, errors: [] };
     }
 
-    // Check saving throw proficiencies
-    const wisdomSave = character.savingThrows.find(st => st.ability === 'wisdom');
-    const charismaSave = character.savingThrows.find(st => st.ability === 'charisma');
-    
-    if (!wisdomSave?.proficient) {
-      errors.push('Clerics must be proficient in Wisdom saving throws');
-    }
-    
-    if (!charismaSave?.proficient) {
-      errors.push('Clerics must be proficient in Charisma saving throws');
-    }
-
-    // Check equipment proficiencies
-    const requiredProficiencies = ['simple', 'light', 'medium', 'shield'];
-    for (const prof of requiredProficiencies) {
-      if (!character.equipmentProficiencies.includes(prof)) {
-        errors.push(`Missing required proficiency: ${prof}`);
-      }
-    }
+    // Convert Zod errors to simple error messages
+    const errors = validation.error.issues.map(issue =>
+      `${issue.path.join('.')}: ${issue.message}`
+    );
 
     return {
-      valid: errors.length === 0,
+      valid: false,
       errors
     };
   }

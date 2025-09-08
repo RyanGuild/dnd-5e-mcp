@@ -17,6 +17,9 @@ export interface Weapon {
   cost: number; // in copper pieces
   description: string;
   proficiencyRequired: boolean;
+  // Discriminator fields for Zod validation
+  equipmentType?: 'weapon';
+  weaponType?: 'melee' | 'ranged';
 }
 
 export interface Armor {
@@ -31,6 +34,9 @@ export interface Armor {
   weight: number; // in pounds
   cost: number; // in copper pieces
   description: string;
+  // Discriminator fields for Zod validation
+  equipmentType?: 'armor';
+  armorType?: 'light' | 'medium' | 'heavy' | 'shield';
 }
 
 export interface Equipment {
@@ -41,6 +47,9 @@ export interface Equipment {
   cost: number; // in copper pieces
   description: string;
   properties?: string[];
+  // Discriminator fields for Zod validation
+  equipmentType?: 'equipment';
+  itemType?: 'tool' | 'gear' | 'consumable' | 'wondrous' | 'other';
 }
 
 export interface InventoryItem {

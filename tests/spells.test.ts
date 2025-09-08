@@ -1,19 +1,33 @@
-import { SpellManager, WIZARD_SPELL_SLOTS } from '../src/utils/spells';
+import { SpellManager, WIZARD_SPELL_SLOTS, CasterConfig } from '../src/utils/spells';
 import { WIZARD_SPELLS } from '../src/data/wizard-spells';
+
+// Helper function for creating wizard config
+function createWizardConfig(): CasterConfig {
+  return {
+    type: 'wizard',
+    spellcastingAbility: 'intelligence',
+    casterType: 'full'
+  };
+}
 
 describe('Spell Management (Wizard)', () => {
   let spellManager: SpellManager;
 
   beforeEach(() => {
     // Create a level 5 wizard with 16 Intelligence (+3 modifier)
-    spellManager = new SpellManager(5, 3);
+    const wizardConfig: CasterConfig = {
+      type: 'wizard',
+      spellcastingAbility: 'intelligence',
+      casterType: 'full'
+    };
+    spellManager = new SpellManager(5, wizardConfig);
   });
 
   describe('SpellManager Initialization', () => {
     it('should initialize with correct level and intelligence modifier', () => {
-      expect(spellManager.getSpellcastingModifier()).toBe(3);
-      expect(spellManager.getSpellSaveDC()).toBe(14); // 8 + 3 + 3 (prof bonus for level 5)
-      expect(spellManager.getSpellAttackBonus()).toBe(6); // 3 + 3 (prof bonus for level 5)
+      expect(spellManager.getSpellcastingModifier(3)).toBe(3);
+      expect(spellManager.getSpellSaveDC(3)).toBe(14); // 8 + 3 + 3 (prof bonus for level 5)
+      expect(spellManager.getSpellAttackBonus(3)).toBe(6); // 3 + 3 (prof bonus for level 5)
     });
 
     it('should initialize with correct spell slots for level 5 wizard', () => {
@@ -30,8 +44,18 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should handle different wizard levels correctly', () => {
-      const level1Wizard = new SpellManager(1, 3);
-      const level20Wizard = new SpellManager(20, 5);
+      const wizardConfig1: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const wizardConfig20: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const level1Wizard = new SpellManager(1, wizardConfig1);
+      const level20Wizard = new SpellManager(20, wizardConfig20);
 
       const level1Slots = level1Wizard.getMaxSlots();
       const level20Slots = level20Wizard.getMaxSlots();
@@ -259,33 +283,63 @@ describe('Spell Management (Wizard)', () => {
 
   describe('Spellcasting Statistics', () => {
     it('should calculate correct spell save DC', () => {
-      const level1Wizard = new SpellManager(1, 2); // +2 INT, +2 prof
-      const level17Wizard = new SpellManager(17, 5); // +5 INT, +6 prof
+      const wizardConfig1: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const wizardConfig17: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const level1Wizard = new SpellManager(1, wizardConfig1); // +2 INT, +2 prof
+      const level17Wizard = new SpellManager(17, wizardConfig17); // +5 INT, +6 prof
 
-      expect(level1Wizard.getSpellSaveDC()).toBe(12); // 8 + 2 + 2
-      expect(level17Wizard.getSpellSaveDC()).toBe(19); // 8 + 5 + 6
+      expect(level1Wizard.getSpellSaveDC(2)).toBe(12); // 8 + 2 + 2
+      expect(level17Wizard.getSpellSaveDC(5)).toBe(19); // 8 + 5 + 6
     });
 
     it('should calculate correct spell attack bonus', () => {
-      const level1Wizard = new SpellManager(1, 2); // +2 INT, +2 prof
-      const level17Wizard = new SpellManager(17, 5); // +5 INT, +6 prof
+      const wizardConfig1: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const wizardConfig17: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const level1Wizard = new SpellManager(1, wizardConfig1); // +2 INT, +2 prof
+      const level17Wizard = new SpellManager(17, wizardConfig17); // +5 INT, +6 prof
 
-      expect(level1Wizard.getSpellAttackBonus()).toBe(4); // 2 + 2
-      expect(level17Wizard.getSpellAttackBonus()).toBe(11); // 5 + 6
+      expect(level1Wizard.getSpellAttackBonus(2)).toBe(4); // 2 + 2
+      expect(level17Wizard.getSpellAttackBonus(5)).toBe(11); // 5 + 6
     });
 
     it('should handle negative intelligence modifiers', () => {
-      const lowIntWizard = new SpellManager(1, -1); // Somehow has negative INT
+      const wizardConfig: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const lowIntWizard = new SpellManager(1, wizardConfig); // Somehow has negative INT
 
-      expect(lowIntWizard.getSpellSaveDC()).toBe(9); // 8 + (-1) + 2
-      expect(lowIntWizard.getSpellAttackBonus()).toBe(1); // (-1) + 2
+      expect(lowIntWizard.getSpellSaveDC(-1)).toBe(9); // 8 + (-1) + 2
+      expect(lowIntWizard.getSpellAttackBonus(-1)).toBe(1); // (-1) + 2
     });
   });
 
   describe('Edge Cases and Error Handling', () => {
     it('should handle level 0 wizard', () => {
-      expect(() => new SpellManager(0, 3)).not.toThrow();
-      const level0Wizard = new SpellManager(0, 3);
+      const wizardConfig: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      expect(() => new SpellManager(0, wizardConfig)).not.toThrow();
+      const level0Wizard = new SpellManager(0, wizardConfig);
       const slots = level0Wizard.getMaxSlots();
       
       // Level 0 should have no spell slots
@@ -293,7 +347,12 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should handle very high level wizard', () => {
-      const level50Wizard = new SpellManager(50, 10);
+      const wizardConfig50: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const level50Wizard = new SpellManager(50, wizardConfig50);
       const slots = level50Wizard.getMaxSlots();
       
       // Should still cap at appropriate spell slot maximums
@@ -429,10 +488,15 @@ describe('Spell Management (Wizard)', () => {
     it('should handle multiclass progression (if applicable)', () => {
       // This test assumes the SpellManager might be extended for multiclassing
       // For now, just test that it handles unusual level/modifier combinations
-      const multiclassWizard = new SpellManager(3, 4); // Level 3 with high INT
-      
-      expect(multiclassWizard.getSpellSaveDC()).toBe(14); // 8 + 4 + 2 (prof bonus for level 3)
-      expect(multiclassWizard.getSpellAttackBonus()).toBe(6); // 4 + 2 (prof bonus for level 3)
+      const wizardConfig: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const multiclassWizard = new SpellManager(3, wizardConfig); // Level 3 with high INT
+
+      expect(multiclassWizard.getSpellSaveDC(4)).toBe(14); // 8 + 4 + 2 (prof bonus for level 3)
+      expect(multiclassWizard.getSpellAttackBonus(4)).toBe(6); // 4 + 2 (prof bonus for level 3)
       
       const slots = multiclassWizard.getMaxSlots();
       expect(slots.level1).toBeGreaterThan(0);
@@ -442,7 +506,12 @@ describe('Spell Management (Wizard)', () => {
 
   describe('Known Spells System', () => {
     it('should initialize with starting spells for new wizard', () => {
-      const level1Wizard = new SpellManager(1, 3);
+      const wizardConfig: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const level1Wizard = new SpellManager(1, wizardConfig);
       const knownSpells = level1Wizard.getAllKnownSpells();
       
       // Should have 3 cantrips and 6 first level spells
@@ -465,7 +534,7 @@ describe('Spell Management (Wizard)', () => {
         level9: []
       };
       
-      const wizard = new SpellManager(3, 3, existingKnownSpells);
+      const wizard = new SpellManager(3, createWizardConfig(), existingKnownSpells);
       const knownSpells = wizard.getAllKnownSpells();
       
       expect(knownSpells.cantrips).toEqual(['Fire Bolt', 'Mage Hand']);
@@ -474,7 +543,12 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should only allow preparation of known spells', () => {
-      const wizard = new SpellManager(3, 3);
+      const wizardConfig: CasterConfig = {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+      const wizard = new SpellManager(3, wizardConfig);
       const knownSpells = wizard.getKnownSpells(1);
       
       // Try to prepare a known spell - should succeed
@@ -487,7 +561,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should learn new spells correctly', () => {
-      const wizard = new SpellManager(3, 3);
+      const wizard = new SpellManager(3, createWizardConfig());
       const availableToLearn = wizard.getAvailableToLearn(1);
       
       if (availableToLearn.length > 0) {
@@ -500,7 +574,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should not learn spells that are already known', () => {
-      const wizard = new SpellManager(3, 3);
+      const wizard = new SpellManager(3, createWizardConfig());
       const knownSpells = wizard.getKnownSpells(1);
       
       if (knownSpells.length > 0) {
@@ -512,7 +586,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should not learn spells of levels too high for character', () => {
-      const level1Wizard = new SpellManager(1, 3);
+      const level1Wizard = new SpellManager(1, createWizardConfig());
       const availableLevel2 = level1Wizard.getAvailableToLearn(2);
       
       if (availableLevel2.length > 0) {
@@ -524,7 +598,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should respect cantrip learning limits', () => {
-      const wizard = new SpellManager(1, 3);
+      const wizard = new SpellManager(1, createWizardConfig());
       const availableCantrips = wizard.getAvailableToLearn(0);
       
       // Try to learn more cantrips than allowed
@@ -539,7 +613,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should learn multiple spells in batch', () => {
-      const wizard = new SpellManager(3, 3);
+      const wizard = new SpellManager(3, createWizardConfig());
       const availableToLearn = wizard.getAvailableToLearn(1);
       
       if (availableToLearn.length >= 2) {
@@ -558,7 +632,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should get spell learning limits correctly', () => {
-      const wizard = new SpellManager(5, 3);
+      const wizard = new SpellManager(5, createWizardConfig());
       const limits = wizard.getSpellLearningLimits();
       
       expect(limits.cantripsMaximum).toBe(4); // Level 5 wizard knows 4 cantrips
@@ -567,7 +641,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should forget spells and remove from prepared', () => {
-      const wizard = new SpellManager(3, 3);
+      const wizard = new SpellManager(3, createWizardConfig());
       const knownSpells = wizard.getKnownSpells(1);
       
       if (knownSpells.length > 0) {
@@ -587,7 +661,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should handle level up progression correctly', () => {
-      const wizard = new SpellManager(1, 3);
+      const wizard = new SpellManager(1, createWizardConfig());
       const initialKnown = wizard.getAllKnownSpells();
       
       // Level up to 2
@@ -602,7 +676,7 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should handle cantrip progression on level up', () => {
-      const wizard = new SpellManager(3, 3); // 3 cantrips
+      const wizard = new SpellManager(3, createWizardConfig()); // 3 cantrips
       
       // Level up to 4 (gains 1 more cantrip)
       const result = wizard.levelUp(4);

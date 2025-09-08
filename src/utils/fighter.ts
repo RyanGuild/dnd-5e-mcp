@@ -1,16 +1,40 @@
 import { DNDCharacter, ClassFeatureInstance } from '../types/character';
-import { FIGHTER_CLASS, FIGHTING_STYLES, getFighterFeaturesByLevel, getFighterFeatureUses, getFighterAttacks } from '../data/classes';
+import { FIGHTER_CLASS, FIGHTING_STYLES, getFighterFeaturesByLevel, getFighterFeatureUses, getFighterAttacks, FightingStyleSchema } from '../data/classes';
 import { rollDice } from './dice';
+import { z } from 'zod';
+
+// Zod schema for Fighter character validation
+const FighterValidationSchema = z.object({
+  class: z.object({
+    name: z.literal('Fighter'),
+    hitDie: z.literal(10),
+    level: z.number().min(1).max(20)
+  })
+});
+
+// Zod schema for fighting style validation
+const FightingStyleNameSchema = z.string().refine(
+  (style) => FIGHTING_STYLES.some(fightingStyle => fightingStyle.name === style),
+  {
+    message: 'Invalid fighting style name'
+  }
+);
 
 // Initialize Fighter class features for a character
 export function initializeFighterFeatures(character: DNDCharacter, fightingStyle?: string): void {
-  if (character.class.name !== 'Fighter') {
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
+    // Not a fighter, silently return
     return;
   }
 
-  // Set fighting style if provided
-  if (fightingStyle && FIGHTING_STYLES.some(style => style.name === fightingStyle)) {
-    character.class.fightingStyle = fightingStyle;
+  // Validate and set fighting style if provided
+  if (fightingStyle) {
+    const styleValidation = FightingStyleNameSchema.safeParse(fightingStyle);
+    if (styleValidation.success) {
+      character.class.fightingStyle = fightingStyle;
+    }
   }
 
   // Initialize class features based on level
@@ -37,7 +61,9 @@ export function initializeFighterFeatures(character: DNDCharacter, fightingStyle
 
 // Use Second Wind feature
 export function useSecondWind(character: DNDCharacter): { success: boolean; healing: number; message: string } {
-  if (character.class.name !== 'Fighter') {
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
     return { success: false, healing: 0, message: 'Only Fighters can use Second Wind.' };
   }
 
@@ -71,7 +97,9 @@ export function useSecondWind(character: DNDCharacter): { success: boolean; heal
 
 // Use Action Surge feature
 export function useActionSurge(character: DNDCharacter): { success: boolean; message: string } {
-  if (character.class.name !== 'Fighter') {
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
     return { success: false, message: 'Only Fighters can use Action Surge.' };
   }
 
@@ -95,7 +123,9 @@ export function useActionSurge(character: DNDCharacter): { success: boolean; mes
 
 // Use Indomitable feature
 export function useIndomitable(character: DNDCharacter): { success: boolean; message: string } {
-  if (character.class.name !== 'Fighter') {
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
     return { success: false, message: 'Only Fighters can use Indomitable.' };
   }
 
@@ -121,8 +151,10 @@ export function useIndomitable(character: DNDCharacter): { success: boolean; mes
 
 // Get number of attacks for Fighter
 export function getFighterNumberOfAttacks(character: DNDCharacter): number {
-  if (character.class.name !== 'Fighter') {
-    return 1;
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
+    return 1; // Default to 1 attack if not a fighter
   }
 
   return getFighterAttacks(character.level);
@@ -130,7 +162,9 @@ export function getFighterNumberOfAttacks(character: DNDCharacter): number {
 
 // Rest and restore Fighter features
 export function restoreFighterFeatures(character: DNDCharacter, restType: 'short' | 'long'): string[] {
-  if (character.class.name !== 'Fighter') {
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
     return [];
   }
 
@@ -164,7 +198,9 @@ export function getFightingStyleBonus(character: DNDCharacter, context: {
   hasShield?: boolean;
   isOffHand?: boolean;
 }): { attackBonus: number; damageBonus: number; acBonus: number } {
-  if (character.class.name !== 'Fighter' || !character.class.fightingStyle) {
+  // Validate character is a fighter and has a fighting style
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success || !character.class.fightingStyle) {
     return { attackBonus: 0, damageBonus: 0, acBonus: 0 };
   }
 
@@ -206,7 +242,9 @@ export function getFightingStyleBonus(character: DNDCharacter, context: {
 
 // Check if character can use a Fighting Style ability
 export function canUseFightingStyleAbility(character: DNDCharacter, abilityName: string): boolean {
-  if (character.class.name !== 'Fighter' || !character.class.fightingStyle) {
+  // Validate character is a fighter and has a fighting style
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success || !character.class.fightingStyle) {
     return false;
   }
 
@@ -222,7 +260,9 @@ export function canUseFightingStyleAbility(character: DNDCharacter, abilityName:
 
 // Get Fighter feature descriptions for display
 export function getFighterFeatureDescriptions(character: DNDCharacter): string[] {
-  if (character.class.name !== 'Fighter') {
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
     return [];
   }
 
@@ -252,7 +292,9 @@ export function getFighterFeatureDescriptions(character: DNDCharacter): string[]
 
 // Level up Fighter - add new features and update existing ones
 export function levelUpFighter(character: DNDCharacter, newLevel: number): string[] {
-  if (character.class.name !== 'Fighter') {
+  // Validate character is a fighter
+  const fighterValidation = FighterValidationSchema.safeParse(character);
+  if (!fighterValidation.success) {
     return [];
   }
 

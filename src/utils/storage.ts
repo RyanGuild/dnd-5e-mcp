@@ -12,6 +12,13 @@ const ENTITIES_FILE = join(homedir(), '.dnd-entities.json');
 const CHARACTER_FILE = join(homedir(), '.characters.json');
 
 export async function saveEntityCollection(collection: EntityCollection): Promise<void> {
+  // Validate the collection before saving
+  const validationResult = EntityCollectionSchema.safeParse(collection);
+
+  if (!validationResult.success) {
+    throw new Error(`Invalid entity collection data: ${validationResult.error.message}`);
+  }
+
   try {
     const data = JSON.stringify(collection, null, 2);
     await fs.writeFile(ENTITIES_FILE, data, 'utf8');
@@ -25,16 +32,11 @@ export async function loadEntityCollection(): Promise<EntityCollection> {
     const data = await fs.readFile(ENTITIES_FILE, 'utf8');
     const rawCollection = JSON.parse(data);
     
-    // Validate the loaded data using Zod schema (temporarily disabled for compilation)
-    // const validationResult = EntityCollectionSchema.safeParse(rawCollection);
-    
-    // if (!validationResult.success) {
-    //   throw new Error(`Invalid entity collection data in file: ${validationResult.error.message}`);
-    // }
-    
-    // Basic manual validation for now
-    if (!rawCollection.characters || !rawCollection.npcs || !rawCollection.monsters) {
-      throw new Error('Invalid entity collection data in file');
+    // Validate the loaded data using Zod schema
+    const validationResult = EntityCollectionSchema.safeParse(rawCollection);
+
+    if (!validationResult.success) {
+      throw new Error(`Invalid entity collection data in file: ${validationResult.error.message}`);
     }
     
     return rawCollection as EntityCollection;

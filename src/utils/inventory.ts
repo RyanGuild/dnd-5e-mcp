@@ -44,30 +44,33 @@ export function addItemToInventory(
     equipped,
     notes
   });
-  
+
   if (!inputValidation.success) {
     throw new Error(`Invalid input for adding item: ${inputValidation.error.message}`);
   }
-  
+
   const existingItem = inventory.items.find(i => i.item.id === item.id);
-  
+
   if (existingItem) {
     existingItem.quantity += quantity;
   } else {
+    // Add equipmentType discriminator field based on item type
+    const itemWithDiscriminator = addEquipmentTypeDiscriminator(item);
+
     const newItem: InventoryItem = {
       id: generateId(),
-      item,
+      item: itemWithDiscriminator,
       quantity,
       equipped,
       notes
     };
-    
+
     // Validate the new inventory item
     const itemValidation = InventoryItemSchema.safeParse(newItem);
     if (!itemValidation.success) {
       throw new Error(`Invalid inventory item: ${itemValidation.error.message}`);
     }
-    
+
     inventory.items.push(newItem);
   }
   
@@ -276,6 +279,41 @@ export function searchItems(query: string): (Weapon | Armor | Equipment)[] {
     item.name.toLowerCase().includes(lowerQuery) ||
     item.description.toLowerCase().includes(lowerQuery)
   );
+}
+
+// Helper function to add equipmentType discriminator field to items
+function addEquipmentTypeDiscriminator(item: Weapon | Armor | Equipment): Weapon | Armor | Equipment {
+  // Check if item already has equipmentType (new format)
+  if ('equipmentType' in item) {
+    return item;
+  }
+
+  // Add discriminator based on item properties
+  if ('damage' in item) {
+    // It's a weapon - add weaponType from existing type field
+    const weaponItem = item as Weapon;
+    return {
+      ...weaponItem,
+      equipmentType: 'weapon' as const,
+      weaponType: weaponItem.type // type is already 'melee' | 'ranged'
+    };
+  } else if ('ac' in item) {
+    // It's armor - add armorType from existing type field
+    const armorItem = item as Armor;
+    return {
+      ...armorItem,
+      equipmentType: 'armor' as const,
+      armorType: armorItem.type // type is already armor type
+    };
+  } else {
+    // It's equipment - add itemType from existing type field
+    const equipmentItem = item as Equipment;
+    return {
+      ...equipmentItem,
+      equipmentType: 'equipment' as const,
+      itemType: equipmentItem.type // type is already equipment type
+    };
+  }
 }
 
 function generateId(): string {

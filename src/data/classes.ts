@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export interface ClassFeature {
   name: string;
   level: number;
@@ -8,6 +10,18 @@ export interface ClassFeature {
   rechargeOn?: 'short_rest' | 'long_rest';
   optional?: boolean;
 }
+
+// Zod schema for ClassFeature validation
+export const ClassFeatureSchema = z.object({
+  name: z.string().min(1),
+  level: z.number().min(1).max(20),
+  description: z.string().min(1),
+  type: z.enum(['passive', 'action', 'bonus_action', 'reaction', 'resource']),
+  uses: z.number().min(1).optional(),
+  usesType: z.enum(['per_rest', 'per_long_rest', 'per_short_rest', 'per_day']).optional(),
+  rechargeOn: z.enum(['short_rest', 'long_rest']).optional(),
+  optional: z.boolean().optional()
+});
 
 export interface FightingStyle {
   name: string;
@@ -42,6 +56,34 @@ export interface ClassData {
   };
 }
 
+// Zod schema for ClassData validation
+export const ClassDataSchema = z.object({
+  name: z.string().min(1),
+  hitDie: z.number().min(4).max(12),
+  primaryAbility: z.array(z.string().min(1)),
+  savingThrowProficiencies: z.array(z.string().min(1)),
+  skillChoices: z.object({
+    choose: z.number().min(0),
+    from: z.array(z.string().min(1))
+  }),
+  armorProficiencies: z.array(z.string().min(1)),
+  weaponProficiencies: z.array(z.string().min(1)),
+  toolProficiencies: z.array(z.string().min(1)),
+  startingEquipment: z.object({
+    choices: z.array(z.object({
+      choose: z.number().min(1),
+      from: z.array(z.string().min(1))
+    })),
+    equipment: z.array(z.string().min(1))
+  }),
+  features: z.array(ClassFeatureSchema),
+  subclasses: z.array(z.string().min(1)).optional(),
+  spellcasting: z.object({
+    ability: z.string().min(1),
+    type: z.enum(['full', 'half', 'third'])
+  }).optional()
+});
+
 export const FIGHTING_STYLES: FightingStyle[] = [
   {
     name: 'Archery',
@@ -75,6 +117,13 @@ export const FIGHTING_STYLES: FightingStyle[] = [
   }
 ];
 
+// Zod schema for FightingStyle validation
+export const FightingStyleSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  effect: z.string().min(1)
+});
+
 export interface MartialArchetype {
   name: string;
   description: string;
@@ -84,6 +133,17 @@ export interface MartialArchetype {
     description: string;
   }>;
 }
+
+// Zod schema for MartialArchetype validation
+export const MartialArchetypeSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  features: z.array(z.object({
+    level: z.number().min(1).max(20),
+    name: z.string().min(1),
+    description: z.string().min(1)
+  }))
+});
 
 export const MARTIAL_ARCHETYPES: MartialArchetype[] = [
   {

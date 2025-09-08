@@ -7,9 +7,7 @@ import {
   CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { DNDCharacter } from './types/character.js';
-import { SpellManager } from './utils/spells.js';
-import { ClericSpellManager } from './utils/cleric-spells.js';
-import { ClericCharacter } from './utils/cleric-character.js';
+import { SpellManager, CasterConfig } from './utils/spells.js';
 import { loadCharacter } from './utils/storage.js';
 import { getAllToolDefinitions, executeToolHandler } from './handlers/registry.js';
 import { HandlerContext } from './handlers/types.js';
@@ -17,8 +15,6 @@ import { HandlerContext } from './handlers/types.js';
 // Global state
 let currentCharacter: DNDCharacter | null = null;
 let spellManager: SpellManager | null = null;
-let clericSpellManager: ClericSpellManager | null = null;
-let clericCharacter: ClericCharacter | null = null;
 
 // Create the server
 const server = new Server({
@@ -35,28 +31,16 @@ const context: HandlerContext = {
     currentCharacter = character;
   },
   get spellManager() {
-    return spellManager || clericSpellManager;
+    return spellManager;
   },
-  set spellManager(manager: SpellManager | ClericSpellManager | null) {
-    if (manager instanceof ClericSpellManager) {
-      clericSpellManager = manager;
-      spellManager = null;
-    } else {
-      spellManager = manager;
-      clericSpellManager = null;
-    }
+  set spellManager(manager: SpellManager | null) {
+    spellManager = manager;
   },
   setCurrentCharacter: (character: DNDCharacter | null) => {
     currentCharacter = character;
   },
-  setSpellManager: (manager: SpellManager | ClericSpellManager | null) => {
-    if (manager instanceof ClericSpellManager) {
-      clericSpellManager = manager;
-      spellManager = null;
-    } else {
-      spellManager = manager;
-      clericSpellManager = null;
-    }
+  setSpellManager: (manager: SpellManager | null) => {
+    spellManager = manager;
   }
 };
 
@@ -66,31 +50,115 @@ async function loadCharacterOnStartup() {
     const character = await loadCharacter();
     if (character) {
       currentCharacter = character;
-      
-      // Initialize spell manager for wizards
-      if (character.class.name === 'Wizard') {
+
+      // Initialize spell manager for spellcasting classes
+      if (isSpellcaster(character.class.name)) {
+        const casterConfig = getCasterConfig(character);
         spellManager = new SpellManager(
           character.level,
-          character.abilityScores.intelligence.modifier,
+          casterConfig,
           character.knownSpells
         );
-      }
-      
-      // Initialize cleric character and spell manager for clerics
-      // Note: In a full implementation, domain would be stored with the character
-      if (character.class.name === 'Cleric') {
-        try {
-          // For now, use a default domain - in a real implementation this would be stored
-          const domainName = 'Life'; // This should be retrieved from character data
-          clericCharacter = new ClericCharacter(character, domainName);
-          clericSpellManager = clericCharacter.getSpellManager();
-        } catch (error) {
-          console.error('Error creating cleric character:', error);
-        }
       }
     }
   } catch (error) {
     console.error('Error loading character:', error);
+  }
+}
+
+// Helper function to determine if a class is a spellcaster
+function isSpellcaster(className: string): boolean {
+  const spellcastingClasses = [
+    'Wizard', 'Cleric', 'Sorcerer', 'Druid', 'Bard',
+    'Paladin', 'Ranger', 'Warlock', 'Eldritch Knight'
+  ];
+  return spellcastingClasses.includes(className);
+}
+
+// Helper function to get caster configuration for a character
+function getCasterConfig(character: DNDCharacter): CasterConfig {
+  const className = character.class.name;
+
+  switch (className) {
+    case 'Wizard':
+      return {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
+
+    case 'Cleric':
+      return {
+        type: 'cleric',
+        spellcastingAbility: 'wisdom',
+        casterType: 'half',
+        domainSpells: {
+          // For now, use default domain spells - in a real implementation,
+          // this would be stored with the character
+          1: ['Bless', 'Cure Wounds'],
+          2: ['Spiritual Weapon'],
+          3: ['Spirit Guardians'],
+          4: ['Guardian of Faith'],
+          5: ['Flame Strike']
+        }
+      };
+
+    case 'Sorcerer':
+      return {
+        type: 'sorcerer',
+        spellcastingAbility: 'charisma',
+        casterType: 'third'
+      };
+
+    case 'Druid':
+      return {
+        type: 'druid',
+        spellcastingAbility: 'wisdom',
+        casterType: 'full'
+      };
+
+    case 'Bard':
+      return {
+        type: 'bard',
+        spellcastingAbility: 'charisma',
+        casterType: 'full'
+      };
+
+    case 'Paladin':
+      return {
+        type: 'paladin',
+        spellcastingAbility: 'charisma',
+        casterType: 'third'
+      };
+
+    case 'Ranger':
+      return {
+        type: 'ranger',
+        spellcastingAbility: 'wisdom',
+        casterType: 'half'
+      };
+
+    case 'Warlock':
+      return {
+        type: 'warlock',
+        spellcastingAbility: 'charisma',
+        casterType: 'pact'
+      };
+
+    case 'Eldritch Knight':
+      return {
+        type: 'wizard', // Eldritch Knights use wizard spellcasting
+        spellcastingAbility: 'intelligence',
+        casterType: 'third'
+      };
+
+    default:
+      // Default to wizard configuration
+      return {
+        type: 'wizard',
+        spellcastingAbility: 'intelligence',
+        casterType: 'full'
+      };
   }
 }
 

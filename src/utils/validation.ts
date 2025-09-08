@@ -18,10 +18,12 @@ const DamageTypeSchema = z.enum([
   'acid', 'thunder', 'force', 'necrotic', 'radiant', 'psychic'
 ]);
 
+// Equipment schemas with equipmentType discriminator
 const WeaponSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  type: z.enum(['melee', 'ranged']),
+  equipmentType: z.literal('weapon'),
+  weaponType: z.enum(['melee', 'ranged']),
   category: z.enum(['simple', 'martial', 'exotic']),
   damage: z.object({
     dice: z.number().min(1),
@@ -42,7 +44,8 @@ const WeaponSchema = z.object({
 const ArmorSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  type: z.enum(['light', 'medium', 'heavy', 'shield']),
+  equipmentType: z.literal('armor'),
+  armorType: z.enum(['light', 'medium', 'heavy', 'shield']),
   ac: z.number().min(0),
   acBonus: z.number().min(0).optional(),
   dexBonus: z.enum(['none', 'limited', 'unlimited']).optional(),
@@ -56,16 +59,24 @@ const ArmorSchema = z.object({
 const EquipmentSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  type: z.enum(['tool', 'gear', 'consumable', 'wondrous', 'other']),
+  equipmentType: z.literal('equipment'),
+  itemType: z.enum(['tool', 'gear', 'consumable', 'wondrous', 'other']),
   weight: z.number().min(0),
   cost: z.number().min(0),
   description: z.string(),
   properties: z.array(z.string()).optional()
 });
 
+// Discriminated union for all equipment types
+const EquipmentUnionSchema = z.discriminatedUnion('equipmentType', [
+  WeaponSchema,
+  ArmorSchema,
+  EquipmentSchema
+]);
+
 const InventoryItemSchema = z.object({
   id: z.string().min(1),
-  item: z.union([WeaponSchema, ArmorSchema, EquipmentSchema]),
+  item: EquipmentUnionSchema,
   quantity: z.number().min(1),
   equipped: z.boolean(),
   notes: z.string().optional()
@@ -127,12 +138,42 @@ const HitPointsSchema = z.object({
   temporary: z.number().min(0)
 });
 
-const CharacterClassSchema = z.object({
+// Discriminated union for specific character classes
+const FighterClassSchema = z.object({
+  name: z.literal('Fighter'),
+  level: z.number().min(1).max(20),
+  hitDie: z.literal(10),
+  fightingStyle: z.string().optional()
+});
+
+const ClericClassSchema = z.object({
+  name: z.literal('Cleric'),
+  level: z.number().min(1).max(20),
+  hitDie: z.literal(8),
+  spellcastingAbility: z.literal('wisdom')
+});
+
+const WizardClassSchema = z.object({
+  name: z.literal('Wizard'),
+  level: z.number().min(1).max(20),
+  hitDie: z.literal(6),
+  spellcastingAbility: z.literal('intelligence')
+});
+
+const GenericClassSchema = z.object({
   name: z.string().min(1),
   level: z.number().min(1).max(20),
   hitDie: z.number().min(1),
   spellcastingAbility: z.enum(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']).optional()
 });
+
+// Union of all class schemas
+const CharacterClassSchema = z.union([
+  FighterClassSchema,
+  ClericClassSchema,
+  WizardClassSchema,
+  GenericClassSchema
+]);
 
 const RaceSchema = z.object({
   name: z.string().min(1),
@@ -293,6 +334,42 @@ const MonsterEntitySchema = BaseEntitySchema.extend({
 
 const GameEntitySchema = z.union([CharacterEntitySchema, NPCEntitySchema, MonsterEntitySchema]);
 
+// Discriminated union for caster types
+const WizardCasterSchema = z.object({
+  type: z.literal('wizard'),
+  spellcastingAbility: z.literal('intelligence'),
+  casterType: z.literal('full')
+});
+
+const ClericCasterSchema = z.object({
+  type: z.literal('cleric'),
+  spellcastingAbility: z.literal('wisdom'),
+  casterType: z.literal('half'),
+  domainSpells: z.record(z.string(), z.array(z.string())).optional()
+});
+
+const SorcererCasterSchema = z.object({
+  type: z.literal('sorcerer'),
+  spellcastingAbility: z.literal('charisma'),
+  casterType: z.literal('third')
+});
+
+const GenericCasterSchema = z.object({
+  type: z.string(),
+  spellcastingAbility: z.enum(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']),
+  casterType: z.enum(['full', 'half', 'third', 'pact']),
+  domainSpells: z.record(z.string(), z.array(z.string())).optional(),
+  knownSpellsLimit: z.boolean().optional()
+});
+
+// Union of all caster type schemas
+const CasterConfigSchema = z.union([
+  WizardCasterSchema,
+  ClericCasterSchema,
+  SorcererCasterSchema,
+  GenericCasterSchema
+]);
+
 const EntityCollectionSchema = z.object({
   characters: z.array(CharacterEntitySchema),
   npcs: z.array(NPCEntitySchema),
@@ -361,6 +438,10 @@ export {
   SavingThrowSchema,
   HitPointsSchema,
   CharacterClassSchema,
+  FighterClassSchema,
+  ClericClassSchema,
+  WizardClassSchema,
+  GenericClassSchema,
   RaceSchema,
   BackgroundSchema,
   CharacterInventorySchema,
@@ -368,6 +449,7 @@ export {
   WeaponSchema,
   ArmorSchema,
   EquipmentSchema,
+  EquipmentUnionSchema,
   InventoryItemSchema,
   CurrencySchema,
   DiceRollSchema,
@@ -377,6 +459,11 @@ export {
   NPCEntitySchema,
   MonsterEntitySchema,
   GameEntitySchema,
+  CasterConfigSchema,
+  WizardCasterSchema,
+  ClericCasterSchema,
+  SorcererCasterSchema,
+  GenericCasterSchema,
   EntityCollectionSchema,
   CreateCharacterInputSchema,
   UpdateCharacterInputSchema,
