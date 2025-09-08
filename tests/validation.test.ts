@@ -1,5 +1,5 @@
-import { validateCharacter, formatValidationResult } from '../src/utils/validation.js';
-import { DNDCharacter } from '../src/types/character.js';
+import { validateCharacter, formatValidationResult } from '../src/utils/validation';
+import { DNDCharacter } from '../src/types/character';
 import { 
   createCompleteCharacter, 
   testFighter, 
@@ -7,7 +7,7 @@ import {
   testRogue,
   invalidCharacters,
   createTestAbilityScores 
-} from './data/testCharacters.js';
+} from './data/testCharacters';
 
 describe('Character Validation', () => {
   describe('Valid Character Validation', () => {

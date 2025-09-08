@@ -8,7 +8,7 @@ import {
   rollAttack,
   rollDamage,
   rollHitDie
-} from '../src/utils/dice.js';
+} from '../src/utils/dice';
 
 // Mock Math.random for predictable testing
 const mockRandom = (values: number[]) => {

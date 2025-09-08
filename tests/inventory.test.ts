@@ -13,10 +13,10 @@ import {
   searchItems,
   calculateMaxWeight,
   calculateCurrentWeight
-} from '../src/utils/inventory.js';
-import { CharacterInventory, InventoryItem } from '../src/types/equipment.js';
-import { DNDCharacter } from '../src/types/character.js';
-import { createCompleteCharacter, testFighter, createTestAbilityScores } from './data/testCharacters.js';
+} from '../src/utils/inventory';
+import { CharacterInventory, InventoryItem } from '../src/types/equipment';
+import { DNDCharacter } from '../src/types/character';
+import { createCompleteCharacter, testFighter, createTestAbilityScores } from './data/testCharacters';
 
 describe('Inventory Management', () => {
   let testInventory: CharacterInventory;

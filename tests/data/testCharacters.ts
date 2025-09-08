@@ -1,5 +1,5 @@
-import { DNDCharacter, AbilityScores } from '../../src/types/character.js';
-import { CharacterInventory } from '../../src/types/equipment.js';
+import { DNDCharacter, AbilityScores } from '../../src/types/character';
+import { CharacterInventory } from '../../src/types/equipment';
 
 export const createTestAbilityScores = (
   str = 10, dex = 10, con = 10, int = 10, wis = 10, cha = 10

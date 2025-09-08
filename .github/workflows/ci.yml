@@ -203,28 +203,28 @@ jobs:
     - name: Validate test characters
       run: |
         # Run specific tests for character validation
-        npm test -- --testPathPattern=character.test.ts
-        npm test -- --testPathPattern=validation.test.ts
+        npm test -- --testPathPatterns=character.test.ts
+        npm test -- --testPathPatterns=validation.test.ts
         
     - name: Test character creation scenarios
       run: |
         # Run character creation tests
-        npm test -- --testPathPattern=character.test.ts --verbose
+        npm test -- --testPathPatterns=character.test.ts --verbose
         
     - name: Test dice rolling mechanics
       run: |
         # Run dice rolling tests
-        npm test -- --testPathPattern=dice.test.ts --verbose
+        npm test -- --testPathPatterns=dice.test.ts --verbose
         
     - name: Test inventory management
       run: |
         # Run inventory tests
-        npm test -- --testPathPattern=inventory.test.ts --verbose
+        npm test -- --testPathPatterns=inventory.test.ts --verbose
         
     - name: Test spell management
       run: |
         # Run spell management tests
-        npm test -- --testPathPattern=spells.test.ts --verbose
+        npm test -- --testPathPatterns=spells.test.ts --verbose
 
   performance:
     name: Performance Tests

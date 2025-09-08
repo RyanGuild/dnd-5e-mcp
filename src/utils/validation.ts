@@ -1,4 +1,4 @@
-import { DNDCharacter } from '../types/character.js';
+import { DNDCharacter } from '../types/character';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -44,6 +44,12 @@ const DEFAULT_BACKGROUND_SKILLS = 2;
 export function validateCharacter(character: DNDCharacter): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+
+  // Handle null/undefined characters
+  if (!character) {
+    errors.push('Character is null or undefined');
+    return { isValid: false, errors, warnings };
+  }
 
   // Check level
   if (typeof character.level !== 'number' || character.level < 1 || character.level > 20) {

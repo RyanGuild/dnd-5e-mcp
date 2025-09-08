@@ -8,15 +8,15 @@ import {
   setCurrentHitPoints,
   addTemporaryHitPoints,
   removeTemporaryHitPoints
-} from '../src/utils/character.js';
-import { DNDCharacter } from '../src/types/character.js';
+} from '../src/utils/character';
+import { DNDCharacter } from '../src/types/character';
 import { 
   testFighter, 
   testWizard, 
   testRogue, 
   createCompleteCharacter, 
   createTestAbilityScores 
-} from './data/testCharacters.js';
+} from './data/testCharacters';
 
 describe('Character Creation', () => {
   describe('createCharacter', () => {
