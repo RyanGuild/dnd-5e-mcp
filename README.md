@@ -219,6 +219,56 @@ npm run build
 npm run dev
 ```
 
+## Docker
+
+### Build
+```bash
+docker build -t dnd-character-mcp .
+```
+
+### Run
+
+#### Basic Usage
+- Run ephemeral (no persistence):
+```bash
+docker run --rm -it dnd-character-mcp
+```
+
+- Run with persistence (bind the container user's home file used by the server):
+```bash
+docker run --rm -it \
+  -v "$HOME/.dnd-entities.json":/home/nodejs/.dnd-entities.json \
+  --name dnd-character-mcp \
+  dnd-character-mcp
+```
+
+#### Docker MCP Gateway Compatible
+For use with Docker MCP Gateway, run with resource limits and security settings:
+```bash
+docker run -d \
+  --name dnd-character-mcp \
+  --cpus=1 \
+  --memory=2g \
+  --security-opt seccomp=unconfined \
+  --cap-drop=ALL \
+  --cap-add=CHOWN \
+  --cap-add=SETGID \
+  --cap-add=SETUID \
+  -v "$HOME/.dnd-entities.json":/home/nodejs/.dnd-entities.json \
+  dnd-character-mcp
+```
+
+#### MCP Gateway Integration
+The image includes proper labels for Docker MCP Gateway discovery:
+- `mcp.server.name`: dnd-character
+- `mcp.server.transport`: stdio
+- `mcp.server.capabilities`: character-management,inventory,dice-rolling
+
+Notes:
+- The server uses stdio (no network port). Use this image with MCP-capable clients (e.g., Cursor) by pointing the MCP command to `node dist/index.js` inside the container or running the container and connecting via stdio.
+- Data persists to `/home/nodejs/.dnd-entities.json` in the container; bind-mount your host's `~/.dnd-entities.json` to keep data between runs.
+- Resource limits (1 CPU, 2GB RAM) align with Docker MCP Gateway recommendations.
+
 ## License
 
 MIT
