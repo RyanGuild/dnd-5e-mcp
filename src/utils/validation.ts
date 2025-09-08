@@ -1,4 +1,5 @@
-import { DNDCharacter } from '../types/character.js';
+import { z } from 'zod';
+import { DNDCharacter } from '../types/character';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -41,46 +42,135 @@ const BACKGROUND_SKILL_PROFICIENCIES: { [key: string]: number } = {
 // Default background skill proficiencies if not specified
 const DEFAULT_BACKGROUND_SKILLS = 2;
 
+// Zod schemas for character validation
+const AbilityScoreSchema = z.object({
+  value: z.number().min(1).max(30),
+  modifier: z.number()
+});
+
+const AbilityScoresSchema = z.object({
+  strength: AbilityScoreSchema,
+  dexterity: AbilityScoreSchema,
+  constitution: AbilityScoreSchema,
+  intelligence: AbilityScoreSchema,
+  wisdom: AbilityScoreSchema,
+  charisma: AbilityScoreSchema
+});
+
+const SkillSchema = z.object({
+  name: z.string().min(1),
+  ability: z.enum(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']),
+  proficient: z.boolean(),
+  modifier: z.number()
+});
+
+const SavingThrowSchema = z.object({
+  ability: z.enum(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']),
+  proficient: z.boolean(),
+  modifier: z.number()
+});
+
+const HitPointsSchema = z.object({
+  current: z.number().min(0),
+  maximum: z.number().min(1),
+  temporary: z.number().min(0)
+});
+
+const CharacterClassSchema = z.object({
+  name: z.string().min(1),
+  level: z.number().min(1).max(20),
+  hitDie: z.number().min(1),
+  spellcastingAbility: z.enum(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']).optional()
+});
+
+const RaceSchema = z.object({
+  name: z.string().min(1),
+  size: z.enum(['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan']),
+  speed: z.number().min(0),
+  traits: z.array(z.string())
+});
+
+const BackgroundSchema = z.object({
+  name: z.string().min(1),
+  skillProficiencies: z.array(z.string()),
+  languages: z.array(z.string()),
+  equipment: z.array(z.string()),
+  feature: z.string()
+});
+
+const CharacterInventorySchema = z.object({
+  items: z.array(z.any()),
+  maxWeight: z.number().min(0),
+  currentWeight: z.number().min(0),
+  currency: z.object({
+    copper: z.number().min(0),
+    silver: z.number().min(0),
+    gold: z.number().min(0),
+    platinum: z.number().min(0)
+  })
+});
+
+const DNDCharacterSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  level: z.number().min(1).max(20),
+  class: CharacterClassSchema,
+  race: RaceSchema,
+  background: BackgroundSchema,
+  abilityScores: AbilityScoresSchema,
+  skills: z.array(SkillSchema),
+  savingThrows: z.array(SavingThrowSchema),
+  hitPoints: HitPointsSchema,
+  armorClass: z.number().min(1),
+  initiative: z.number(),
+  speed: z.number().min(0),
+  proficiencyBonus: z.number().min(1),
+  equipment: z.array(z.string()),
+  spells: z.array(z.string()),
+  features: z.array(z.string()),
+  languages: z.array(z.string()),
+  alignment: z.string(),
+  experiencePoints: z.number().min(0),
+  notes: z.string(),
+  inventory: CharacterInventorySchema,
+  equipmentProficiencies: z.array(z.string())
+});
+
 export function validateCharacter(character: DNDCharacter): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Check level
-  if (typeof character.level !== 'number' || character.level < 1 || character.level > 20) {
-    errors.push('Level must be a number between 1 and 20');
+  // Handle null/undefined characters
+  if (!character) {
+    errors.push('Character is null or undefined');
+    return { isValid: false, errors, warnings };
   }
 
-  // Check ability scores structure
-  if (!character.abilityScores || typeof character.abilityScores !== 'object') {
-    errors.push('Missing ability scores');
-  } else {
-    const requiredAbilities = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
-    for (const ability of requiredAbilities) {
-      if (!character.abilityScores[ability as keyof typeof character.abilityScores]) {
-        errors.push(`Missing ability score: ${ability}`);
-      } else {
-        const abilityScore = character.abilityScores[ability as keyof typeof character.abilityScores];
-        if (typeof abilityScore !== 'object' || !('value' in abilityScore) || !('modifier' in abilityScore)) {
-          errors.push(`Invalid ability score structure for ${ability}`);
-        } else if (typeof abilityScore.value !== 'number' || abilityScore.value < 1 || abilityScore.value > 30) {
-          errors.push(`Invalid ability score value for ${ability}: must be between 1 and 30`);
+  try {
+    // Validate the character structure with Zod
+    DNDCharacterSchema.parse(character);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      // Convert Zod errors to our error format
+      error.issues.forEach((err: z.ZodIssue) => {
+        const path = err.path.join('.');
+        const message = `${path}: ${err.message}`;
+        
+        // Determine if this should be an error or warning based on the field
+        if (isCriticalField(err.path)) {
+          errors.push(message);
+        } else {
+          warnings.push(message);
         }
-      }
+      });
+    } else {
+      errors.push('Unknown validation error occurred');
     }
   }
 
-  // Check skills structure
-  if (!Array.isArray(character.skills)) {
-    errors.push('Skills must be an array');
-  } else {
-    for (const skill of character.skills) {
-      if (typeof skill !== 'object' || !('name' in skill) || !('proficient' in skill) || !('modifier' in skill)) {
-        errors.push('Invalid skill structure');
-        break;
-      }
-    }
-    
-    // Validate skill proficiencies count
+  // Additional business logic validations that can't be easily expressed in Zod
+  if (character && character.skills && character.class && character.background) {
+    // Validate skill proficiencies count (only warn, don't error)
     const proficientSkills = character.skills.filter(skill => skill.proficient);
     const expectedClassSkills = CLASS_SKILL_PROFICIENCIES[character.class.name] || 2;
     const expectedBackgroundSkills = character.background ? 
@@ -89,7 +179,7 @@ export function validateCharacter(character: DNDCharacter): ValidationResult {
     const expectedTotalSkills = expectedClassSkills + expectedBackgroundSkills;
     
     if (proficientSkills.length !== expectedTotalSkills) {
-      errors.push(`Incorrect number of skill proficiencies: expected ${expectedTotalSkills} (${expectedClassSkills} from class + ${expectedBackgroundSkills} from background), but found ${proficientSkills.length}`);
+      warnings.push(`Incorrect number of skill proficiencies: expected ${expectedTotalSkills} (${expectedClassSkills} from class + ${expectedBackgroundSkills} from background), but found ${proficientSkills.length}`);
     }
     
     // Check for duplicate skill proficiencies
@@ -98,24 +188,17 @@ export function validateCharacter(character: DNDCharacter): ValidationResult {
     if (skillNames.length !== uniqueSkillNames.size) {
       errors.push('Duplicate skill proficiencies found');
     }
-  }
 
-  // Check saving throws structure
-  if (!Array.isArray(character.savingThrows)) {
-    errors.push('Saving throws must be an array');
-  } else {
-    for (const savingThrow of character.savingThrows) {
-      if (typeof savingThrow !== 'object' || !('ability' in savingThrow) || !('proficient' in savingThrow) || !('modifier' in savingThrow)) {
-        errors.push('Invalid saving throw structure');
-        break;
-      }
+    // Check current hit points don't exceed maximum
+    if (character.hitPoints && character.hitPoints.current > character.hitPoints.maximum) {
+      warnings.push('Current hit points cannot exceed maximum hit points');
     }
-  }
 
-  // Check for Python-style formatting (common issue)
-  const characterString = JSON.stringify(character);
-  if (characterString.includes("'") || characterString.includes('True') || characterString.includes('False')) {
-    warnings.push('Character data may contain Python-style formatting instead of JSON');
+    // Check for Python-style formatting (common issue)
+    const characterString = JSON.stringify(character);
+    if (characterString.includes("'") || characterString.includes('True') || characterString.includes('False')) {
+      warnings.push('Character data may contain Python-style formatting instead of JSON');
+    }
   }
 
   return {
@@ -123,6 +206,20 @@ export function validateCharacter(character: DNDCharacter): ValidationResult {
     errors,
     warnings
   };
+}
+
+// Helper function to determine if a field is critical for validation
+function isCriticalField(path: (string | number | symbol)[]): boolean {
+  const criticalFields = [
+    'id', 'name', 'level', 'class', 'race', 'background', 
+    'abilityScores', 'skills', 'savingThrows', 'hitPoints', 
+    'inventory', 'armorClass', 'proficiencyBonus', 'experiencePoints'
+  ];
+  
+  // Check if any segment of the path matches critical fields
+  return path.some(segment => 
+    typeof segment === 'string' && criticalFields.includes(segment)
+  );
 }
 
 export function formatValidationResult(result: ValidationResult): string {

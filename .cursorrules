@@ -94,3 +94,7 @@ Search for all sword-type weapons available.
 - **Dev**: `npm run dev`
 
 The server automatically saves character data to `character.json` and loads it on startup.
+
+
+### Use Zod to create datastructures
+
