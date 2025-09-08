@@ -176,7 +176,7 @@ export const BARBARIAN_PROGRESSION: { [level: number]: BarbarianProgression } = 
 export const BARBARIAN_FEATURES: BarbarianFeature[] = [
   {
     name: 'Rage',
-    description: 'In battle, you fight with primal ferocity. On your turn, you can enter a rage as a bonus action. While raging, you gain advantage on Strength checks and saving throws, bonus damage to melee weapon attacks using Strength, and resistance to bludgeoning, piercing, and slashing damage. Your rage lasts for 1 minute and ends early if you are knocked unconscious or if your turn ends and you haven't attacked a hostile creature or taken damage since your last turn.',
+    description: 'In battle, you fight with primal ferocity. On your turn, you can enter a rage as a bonus action. While raging, you gain advantage on Strength checks and saving throws, bonus damage to melee weapon attacks using Strength, and resistance to bludgeoning, piercing, and slashing damage. Your rage lasts for 1 minute and ends early if you are knocked unconscious or if your turn ends and you haven\'t attacked a hostile creature or taken damage since your last turn.',
     level: 1
   },
   {
@@ -191,7 +191,7 @@ export const BARBARIAN_FEATURES: BarbarianFeature[] = [
   },
   {
     name: 'Danger Sense',
-    description: 'You gain advantage on Dexterity saving throws against effects that you can see, such as traps and spells. To gain this benefit, you can't be blinded, deafened, or incapacitated.',
+    description: 'You gain advantage on Dexterity saving throws against effects that you can see, such as traps and spells. To gain this benefit, you can\'t be blinded, deafened, or incapacitated.',
     level: 2
   },
   {
@@ -206,12 +206,12 @@ export const BARBARIAN_FEATURES: BarbarianFeature[] = [
   },
   {
     name: 'Fast Movement',
-    description: 'Your speed increases by 10 feet while you aren't wearing heavy armor.',
+    description: 'Your speed increases by 10 feet while you aren\'t wearing heavy armor.',
     level: 5
   },
   {
     name: 'Feral Instinct',
-    description: 'You have advantage on initiative rolls. Additionally, if you are surprised at the beginning of combat and aren't incapacitated, you can act normally on your first turn, but only if you enter your rage before doing anything else on that turn.',
+    description: 'You have advantage on initiative rolls. Additionally, if you are surprised at the beginning of combat and aren\'t incapacitated, you can act normally on your first turn, but only if you enter your rage before doing anything else on that turn.',
     level: 7
   },
   {
@@ -252,9 +252,9 @@ export const PRIMAL_PATHS: { [name: string]: PrimalPath } = {
         description: 'You can go into a frenzy when you rage. If you do so, for the duration of your rage you can make a single melee weapon attack as a bonus action on each of your turns after this one. When your rage ends, you suffer one level of exhaustion.',
         level: 3
       }],
-      6: [{
+      6: [      {
         name: 'Mindless Rage',
-        description: 'You can't be charmed or frightened while raging. If you are charmed or frightened when you enter your rage, the effect is suspended for the duration of the rage.',
+        description: 'You can\'t be charmed or frightened while raging. If you are charmed or frightened when you enter your rage, the effect is suspended for the duration of the rage.',
         level: 6
       }],
       10: [{
