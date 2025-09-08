@@ -1,4 +1,4 @@
-import { CharacterInventory } from './equipment.js';
+import { CharacterInventory } from './equipment';
 
 export interface AbilityScore {
   value: number;

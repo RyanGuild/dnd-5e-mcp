@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import { GameEntity, CharacterEntity, NPCEntity, MonsterEntity, EntityType, isCharacter, isNPC, isMonster } from '../types/entity.js';
-import { DNDCharacter, AbilityScores } from '../types/character.js';
-import { saveEntity, loadEntity, loadActiveEntity, setActiveEntity, deleteEntity, listEntities } from './storage.js';
-import { calculateAbilityModifier } from './character.js';
+import { GameEntity, CharacterEntity, NPCEntity, MonsterEntity, EntityType, isCharacter, isNPC, isMonster } from '../types/entity';
+import { DNDCharacter, AbilityScores } from '../types/character';
+import { saveEntity, loadEntity, loadActiveEntity, setActiveEntity, deleteEntity, listEntities } from './storage';
+import { calculateAbilityModifier } from './character';
 
 export async function createCharacterEntity(characterData: {
   name: string;

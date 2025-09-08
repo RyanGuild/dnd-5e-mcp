@@ -1,7 +1,7 @@
-import { DNDCharacter, AbilityScores, Skill, SavingThrow } from '../types/character.js';
-import { createEmptyInventory, calculateMaxWeight } from './inventory.js';
-import { initializeFighterFeatures, getFighterNumberOfAttacks } from './fighter.js';
-import { FIGHTER_CLASS, getFighterProficiencies } from '../data/classes.js';
+import { DNDCharacter, AbilityScores, Skill, SavingThrow } from '../types/character';
+import { createEmptyInventory, calculateMaxWeight } from './inventory';
+import { initializeFighterFeatures, getFighterNumberOfAttacks } from './fighter';
+import { FIGHTER_CLASS, getFighterProficiencies } from '../data/classes';
 
 export function calculateAbilityModifier(score: number): number {
   return Math.floor((score - 10) / 2);
@@ -155,12 +155,22 @@ export function healCharacter(character: DNDCharacter, amount: number): { newCur
 
 export function damageCharacter(character: DNDCharacter, amount: number): { newCurrent: number; damage: number } {
   const oldCurrent = character.hitPoints.current;
+  const oldTemporary = character.hitPoints.temporary;
+  const originalAmount = amount;
+  
+  // Reduce temporary hit points first
+  if (character.hitPoints.temporary > 0) {
+    const tempDamage = Math.min(amount, character.hitPoints.temporary);
+    character.hitPoints.temporary -= tempDamage;
+    amount -= tempDamage;
+  }
+  
+  // Then reduce actual hit points
   const newCurrent = Math.max(0, oldCurrent - amount);
-  const damage = oldCurrent - newCurrent;
   
   character.hitPoints.current = newCurrent;
   
-  return { newCurrent, damage };
+  return { newCurrent, damage: originalAmount };
 }
 
 export function setCurrentHitPoints(character: DNDCharacter, amount: number): { newCurrent: number; changed: number } {
@@ -175,7 +185,7 @@ export function setCurrentHitPoints(character: DNDCharacter, amount: number): { 
 
 export function addTemporaryHitPoints(character: DNDCharacter, amount: number): { newTemporary: number; added: number } {
   const oldTemporary = character.hitPoints.temporary;
-  const newTemporary = Math.max(0, amount); // New temp HP replaces old temp HP
+  const newTemporary = Math.max(oldTemporary, amount); // New temp HP only replaces if higher
   const added = newTemporary - oldTemporary;
   
   character.hitPoints.temporary = newTemporary;

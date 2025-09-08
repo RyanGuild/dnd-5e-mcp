@@ -1,4 +1,4 @@
-import { Weapon } from '../types/equipment.js';
+import { Weapon } from '../types/equipment';
 
 export const WEAPONS: Weapon[] = [
   // Simple Melee Weapons

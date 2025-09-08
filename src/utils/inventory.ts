@@ -1,8 +1,8 @@
-import { CharacterInventory, InventoryItem, EquipmentStats, Weapon, Armor, Equipment } from '../types/equipment.js';
-import { DNDCharacter } from '../types/character.js';
-import { WEAPONS } from '../data/weapons.js';
-import { ARMOR } from '../data/armor.js';
-import { EQUIPMENT } from '../data/equipment.js';
+import { CharacterInventory, InventoryItem, EquipmentStats, Weapon, Armor, Equipment } from '../types/equipment';
+import { DNDCharacter } from '../types/character';
+import { WEAPONS } from '../data/weapons';
+import { ARMOR } from '../data/armor';
+import { EQUIPMENT } from '../data/equipment';
 
 export function createEmptyInventory(): CharacterInventory {
   return {
@@ -35,6 +35,11 @@ export function addItemToInventory(
   equipped: boolean = false,
   notes?: string
 ): CharacterInventory {
+  // Validate quantity
+  if (quantity <= 0) {
+    return inventory; // Don't add items with zero or negative quantity
+  }
+  
   const existingItem = inventory.items.find(i => i.item.id === item.id);
   
   if (existingItem) {
@@ -66,6 +71,10 @@ export function removeItemFromInventory(
   }
   
   const item = inventory.items[itemIndex];
+  
+  if (item.quantity < quantity) {
+    throw new Error('Not enough items in inventory');
+  }
   
   if (item.quantity <= quantity) {
     inventory.items.splice(itemIndex, 1);
@@ -116,18 +125,18 @@ export function unequipItem(inventory: CharacterInventory, itemId: string): Char
 
 export function getEquippedWeapons(inventory: CharacterInventory): Weapon[] {
   return inventory.items
-    .filter(i => 'type' in i.item && i.item.type === 'melee' && i.equipped)
+    .filter(i => 'type' in i.item && (i.item.type === 'melee' || i.item.type === 'ranged') && i.equipped)
     .map(i => i.item as Weapon);
 }
 
-export function getEquippedArmor(inventory: CharacterInventory): Armor | null {
+export function getEquippedArmor(inventory: CharacterInventory): Armor | undefined {
   const armorItem = inventory.items.find(i => 
     'type' in i.item && 
     (i.item.type === 'light' || i.item.type === 'medium' || i.item.type === 'heavy') && 
     i.equipped
   );
   
-  return armorItem ? armorItem.item as Armor : null;
+  return armorItem ? armorItem.item as Armor : undefined;
 }
 
 export function getEquippedShield(inventory: CharacterInventory): Armor | null {

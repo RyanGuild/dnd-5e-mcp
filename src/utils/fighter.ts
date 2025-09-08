@@ -1,6 +1,6 @@
-import { DNDCharacter, ClassFeatureInstance } from '../types/character.js';
-import { FIGHTER_CLASS, FIGHTING_STYLES, getFighterFeaturesByLevel, getFighterFeatureUses, getFighterAttacks } from '../data/classes.js';
-import { rollDice } from './dice.js';
+import { DNDCharacter, ClassFeatureInstance } from '../types/character';
+import { FIGHTER_CLASS, FIGHTING_STYLES, getFighterFeaturesByLevel, getFighterFeatureUses, getFighterAttacks } from '../data/classes';
+import { rollDice } from './dice';
 
 // Initialize Fighter class features for a character
 export function initializeFighterFeatures(character: DNDCharacter, fightingStyle?: string): void {

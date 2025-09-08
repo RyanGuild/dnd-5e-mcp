@@ -250,7 +250,17 @@ export class SpellManager {
   constructor(characterLevel: number, intelligenceModifier: number) {
     this.characterLevel = characterLevel;
     this.intelligenceModifier = intelligenceModifier;
-    this.maxSlots = WIZARD_SPELL_SLOTS[characterLevel];
+    
+    // Level 0 wizards have no spell slots
+    if (characterLevel === 0) {
+      this.maxSlots = {
+        level1: 0, level2: 0, level3: 0, level4: 0, level5: 0,
+        level6: 0, level7: 0, level8: 0, level9: 0
+      };
+    } else {
+      this.maxSlots = WIZARD_SPELL_SLOTS[characterLevel] || WIZARD_SPELL_SLOTS[20]; // Fallback to level 20
+    }
+    
     this.currentSlots = { ...this.maxSlots };
     this.spellbook = { ...WIZARD_SPELLS };
     this.preparedSpells = {
@@ -291,6 +301,11 @@ export class SpellManager {
 
   // Cast a spell (expend a spell slot)
   castSpell(level: number): boolean {
+    // Cantrips don't consume spell slots
+    if (level === 0) {
+      return true;
+    }
+    
     const slotKey = `level${level}` as keyof SpellSlots;
     if (this.currentSlots[slotKey] > 0) {
       this.currentSlots[slotKey]--;
@@ -341,15 +356,16 @@ export class SpellManager {
 
     // For other levels, check if total prepared spells don't exceed limit
     const totalPrepared = Object.values(this.preparedSpells)
-      .filter((_, index) => index > 0) // Exclude cantrips
-      .reduce((total, spells) => total + spells.length, 0);
+      .filter((spells, index) => index > 0) // Exclude cantrips
+      .flat()
+      .length;
     
-    if (totalPrepared + validSpells.length <= maxPrepared) {
-      this.preparedSpells[levelKey] = validSpells;
-      return true;
+    if (totalPrepared + validSpells.length > maxPrepared) {
+      return false; // Would exceed preparation limit
     }
 
-    return false;
+    this.preparedSpells[levelKey] = validSpells;
+    return true;
   }
 
   // Get prepared spells for a specific level
@@ -387,12 +403,12 @@ export class SpellManager {
   }
 
   // Get spell details by name
-  getSpellDetails(spellName: string): Spell | null {
+  getSpellDetails(spellName: string): Spell | undefined {
     for (const spells of Object.values(this.spellbook)) {
-      const spell = spells.find((s: Spell) => s.name === spellName);
+      const spell = spells.find((s: Spell) => s.name.toLowerCase() === spellName.toLowerCase());
       if (spell) return spell;
     }
-    return null;
+    return undefined;
   }
 
   // Add spell to spellbook
@@ -410,11 +426,11 @@ export class SpellManager {
 
   // Get spell save DC
   getSpellSaveDC(): number {
-    return 8 + this.intelligenceModifier + Math.ceil(this.characterLevel / 4) + 2; // Proficiency bonus for level 5 is +3
+    return 8 + this.intelligenceModifier + Math.ceil(this.characterLevel / 4) + 1; // 8 + ability mod + prof bonus
   }
 
   // Get spell attack bonus
   getSpellAttackBonus(): number {
-    return this.intelligenceModifier + Math.ceil(this.characterLevel / 4) + 2; // Proficiency bonus for level 5 is +3
+    return this.intelligenceModifier + Math.ceil(this.characterLevel / 4) + 1; // ability mod + prof bonus
   }
 }
