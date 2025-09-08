@@ -20,7 +20,17 @@ import {
   addTemporaryHitPoints, 
   removeTemporaryHitPoints 
 } from './utils/character.js';
-import { validateCharacter, formatValidationResult } from './utils/validation.js';
+import { 
+  validateCharacter, 
+  formatValidationResult,
+  CreateCharacterInputSchema,
+  UpdateCharacterInputSchema,
+  RollDiceInputSchema,
+  AbilityCheckInputSchema,
+  AddItemInputSchema,
+  RemoveItemInputSchema,
+  EquipItemInputSchema
+} from './utils/validation.js';
 import { saveCharacter, loadCharacter, deleteCharacter, characterExists } from './utils/storage.js';
 import {
   addItemToInventory,
@@ -844,7 +854,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'create_character': {
-        const { name: charName, class: className, race, level = 1, abilityScores } = args as any;
+        // Validate input using Zod schema
+        const inputValidation = CreateCharacterInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input for creating character: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+        
+        const { name: charName, class: className, race, level, abilityScores } = inputValidation.data;
         
         const character = createCharacter({
           name: charName,
@@ -945,57 +970,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const { field, value } = args as any;
+        // Validate input using Zod schema
+        const inputValidation = UpdateCharacterInputSchema.safeParse(args);
         
-        // Validate the field and value before updating
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input for updating character: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { field, value } = inputValidation.data;
+        
+        // Additional field-specific validation
         if (field === 'level' && (typeof value !== 'number' || value < 1 || value > 20)) {
           return {
             content: [
               {
                 type: 'text',
                 text: `Invalid level: ${value}. Level must be a number between 1 and 20.`
-              }
-            ],
-            isError: true
-          };
-        }
-
-        if (field === 'abilityScores' && typeof value === 'object') {
-          // Validate ability scores structure
-          const requiredAbilities = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
-          for (const ability of requiredAbilities) {
-            if (!value[ability] || typeof value[ability] !== 'object' || !('value' in value[ability])) {
-              return {
-                content: [
-                  {
-                    type: 'text',
-                    text: `Invalid ability scores structure. Each ability must have a 'value' property.`
-                  }
-                ],
-                isError: true
-              };
-            }
-          }
-        }
-
-        if (field === 'skills' && !Array.isArray(value)) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Invalid skills: must be an array.`
-              }
-            ],
-            isError: true
-          };
-        }
-
-        if (field === 'savingThrows' && !Array.isArray(value)) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Invalid saving throws: must be an array.`
               }
             ],
             isError: true
@@ -1017,7 +1015,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'roll_dice': {
-        const { dice, sides, modifier = 0, advantage = false, disadvantage = false } = args as any;
+        // Validate input using Zod schema
+        const inputValidation = RollDiceInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input for rolling dice: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+        
+        const { dice, sides, modifier, advantage, disadvantage } = inputValidation.data;
         
         let result;
         if (advantage && !disadvantage) {
@@ -1052,7 +1065,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const { ability, proficient = false } = args as any;
+        // Validate input using Zod schema
+        const inputValidation = AbilityCheckInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input for ability check: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { ability, proficient } = inputValidation.data;
         const abilityScore = currentCharacter.abilityScores[ability as keyof typeof currentCharacter.abilityScores];
         const result = rollAbilityCheck(abilityScore.value, currentCharacter.proficiencyBonus, proficient);
 
