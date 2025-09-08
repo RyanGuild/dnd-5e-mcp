@@ -63,6 +63,34 @@ npm run dev
 - **delete_character**: Delete the current character
   - Removes the character from memory and deletes the ~/.characters.json file
 
+#### Spell Management (Wizard & Cleric)
+
+**Basic Spell Management:**
+- **get_spell_slots**: Get current spell slots for the character
+- **prepare_spells**: Prepare spells for the day (limited by class rules)
+- **get_prepared_spells**: Get currently prepared spells
+- **search_spells**: Search for spells by name, school, or description
+- **get_spell_details**: Get detailed information about a specific spell
+- **cast_spell**: Cast a spell (expend a spell slot)
+- **restore_spell_slots**: Restore spell slots (long rest)
+- **get_spellcasting_info**: Get spellcasting ability modifier, save DC, and attack bonus
+
+**Wizard-Specific Spell Learning:**
+- **get_known_spells**: Get spells known by the wizard
+  - Parameters: `level` (optional) - Get known spells for a specific level, or all levels
+  - Example: Get all known cantrips with level 0
+- **learn_spell**: Learn a new spell (from scrolls, copying, etc.)
+  - Parameters: `spellName`, `level`
+  - Example: Learn "Fireball" at level 3
+- **learn_spells**: Learn multiple spells at once
+  - Parameters: `spells` - Array of {name, level} objects
+  - Example: Learn multiple spells when leveling up
+- **get_available_to_learn**: Get spells available to learn at a specific level
+  - Parameters: `level`
+  - Example: See all 2nd level spells available to learn
+- **get_spell_learning_info**: Get information about spell learning limits and current known spells
+  - Shows cantrips known/maximum and total spells known by level
+
 #### Dice Rolling
 
 - **roll_dice**: Roll dice with optional modifiers

@@ -181,8 +181,13 @@ const createCharacterHandler: ToolHandler = {
     if (character.class.name === 'Wizard') {
       const spellManager = new SpellManager(
         character.level,
-        character.abilityScores.intelligence.modifier
+        character.abilityScores.intelligence.modifier,
+        character.knownSpells
       );
+      
+      // Save the known spells back to the character
+      character.knownSpells = spellManager.getAllKnownSpells();
+      
       context.setSpellManager(spellManager);
     }
     

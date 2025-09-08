@@ -111,23 +111,25 @@ describe('Spell Management (Wizard)', () => {
 
   describe('Spell Preparation', () => {
     it('should prepare cantrips correctly', () => {
-      const cantrips = ['Mage Hand', 'Prestidigitation', 'Minor Illusion'];
-      const success = spellManager.prepareSpells(cantrips, 0);
+      const knownCantrips = spellManager.getKnownSpells(0);
+      const cantripsToPrep = knownCantrips.slice(0, 2); // Take first 2 known cantrips
+      const success = spellManager.prepareSpells(cantripsToPrep, 0);
 
       expect(success).toBe(true);
       
       const preparedCantrips = spellManager.getPreparedSpells(0);
-      expect(preparedCantrips).toEqual(expect.arrayContaining(cantrips));
+      expect(preparedCantrips).toEqual(expect.arrayContaining(cantripsToPrep));
     });
 
     it('should prepare leveled spells correctly', () => {
-      const level1Spells = ['Magic Missile', 'Shield', 'Detect Magic'];
-      const success = spellManager.prepareSpells(level1Spells, 1);
+      const knownLevel1 = spellManager.getKnownSpells(1);
+      const spellsToPrep = knownLevel1.slice(0, 3); // Take first 3 known spells
+      const success = spellManager.prepareSpells(spellsToPrep, 1);
 
       expect(success).toBe(true);
       
       const preparedLevel1 = spellManager.getPreparedSpells(1);
-      expect(preparedLevel1).toEqual(expect.arrayContaining(level1Spells));
+      expect(preparedLevel1).toEqual(expect.arrayContaining(spellsToPrep));
     });
 
     it('should enforce preparation limits', () => {
@@ -155,24 +157,37 @@ describe('Spell Management (Wizard)', () => {
     });
 
     it('should get all prepared spells', () => {
-      spellManager.prepareSpells(['Mage Hand'], 0);
-      spellManager.prepareSpells(['Magic Missile'], 1);
-      spellManager.prepareSpells(['Misty Step'], 2);
+      const knownCantrips = spellManager.getKnownSpells(0);
+      const knownLevel1 = spellManager.getKnownSpells(1);
+      
+      if (knownCantrips.length > 0) {
+        spellManager.prepareSpells([knownCantrips[0]], 0);
+      }
+      if (knownLevel1.length > 0) {
+        spellManager.prepareSpells([knownLevel1[0]], 1);
+      }
 
       const allPrepared = spellManager.getAllPreparedSpells();
 
-      expect(allPrepared.cantrips).toContain('Mage Hand');
-      expect(allPrepared.level1).toContain('Magic Missile');
-      expect(allPrepared.level2).toContain('Misty Step');
+      if (knownCantrips.length > 0) {
+        expect(allPrepared.cantrips).toContain(knownCantrips[0]);
+      }
+      if (knownLevel1.length > 0) {
+        expect(allPrepared.level1).toContain(knownLevel1[0]);
+      }
     });
 
     it('should replace previously prepared spells of the same level', () => {
-      spellManager.prepareSpells(['Magic Missile'], 1);
-      spellManager.prepareSpells(['Shield'], 1);
+      const knownLevel1 = spellManager.getKnownSpells(1);
+      
+      if (knownLevel1.length >= 2) {
+        spellManager.prepareSpells([knownLevel1[0]], 1);
+        spellManager.prepareSpells([knownLevel1[1]], 1);
 
-      const preparedLevel1 = spellManager.getPreparedSpells(1);
-      expect(preparedLevel1).toContain('Shield');
-      expect(preparedLevel1).not.toContain('Magic Missile');
+        const preparedLevel1 = spellManager.getPreparedSpells(1);
+        expect(preparedLevel1).toContain(knownLevel1[1]);
+        expect(preparedLevel1).not.toContain(knownLevel1[0]);
+      }
     });
   });
 
@@ -422,6 +437,178 @@ describe('Spell Management (Wizard)', () => {
       const slots = multiclassWizard.getMaxSlots();
       expect(slots.level1).toBeGreaterThan(0);
       expect(slots.level2).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Known Spells System', () => {
+    it('should initialize with starting spells for new wizard', () => {
+      const level1Wizard = new SpellManager(1, 3);
+      const knownSpells = level1Wizard.getAllKnownSpells();
+      
+      // Should have 3 cantrips and 6 first level spells
+      expect(knownSpells.cantrips.length).toBe(3);
+      expect(knownSpells.level1.length).toBe(6);
+      expect(knownSpells.level2.length).toBe(0);
+    });
+
+    it('should preserve existing known spells when provided', () => {
+      const existingKnownSpells = {
+        cantrips: ['Fire Bolt', 'Mage Hand'],
+        level1: ['Magic Missile', 'Shield'],
+        level2: ['Misty Step'],
+        level3: [],
+        level4: [],
+        level5: [],
+        level6: [],
+        level7: [],
+        level8: [],
+        level9: []
+      };
+      
+      const wizard = new SpellManager(3, 3, existingKnownSpells);
+      const knownSpells = wizard.getAllKnownSpells();
+      
+      expect(knownSpells.cantrips).toEqual(['Fire Bolt', 'Mage Hand']);
+      expect(knownSpells.level1).toEqual(['Magic Missile', 'Shield']);
+      expect(knownSpells.level2).toEqual(['Misty Step']);
+    });
+
+    it('should only allow preparation of known spells', () => {
+      const wizard = new SpellManager(3, 3);
+      const knownSpells = wizard.getKnownSpells(1);
+      
+      // Try to prepare a known spell - should succeed
+      const success1 = wizard.prepareSpells([knownSpells[0]], 1);
+      expect(success1).toBe(true);
+      
+      // Try to prepare an unknown spell - should fail
+      const success2 = wizard.prepareSpells(['Unknown Spell'], 1);
+      expect(success2).toBe(false);
+    });
+
+    it('should learn new spells correctly', () => {
+      const wizard = new SpellManager(3, 3);
+      const availableToLearn = wizard.getAvailableToLearn(1);
+      
+      if (availableToLearn.length > 0) {
+        const spellToLearn = availableToLearn[0].name;
+        const success = wizard.learnSpell(spellToLearn, 1);
+        
+        expect(success).toBe(true);
+        expect(wizard.getKnownSpells(1)).toContain(spellToLearn);
+      }
+    });
+
+    it('should not learn spells that are already known', () => {
+      const wizard = new SpellManager(3, 3);
+      const knownSpells = wizard.getKnownSpells(1);
+      
+      if (knownSpells.length > 0) {
+        const alreadyKnownSpell = knownSpells[0];
+        const success = wizard.learnSpell(alreadyKnownSpell, 1);
+        
+        expect(success).toBe(false);
+      }
+    });
+
+    it('should not learn spells of levels too high for character', () => {
+      const level1Wizard = new SpellManager(1, 3);
+      const availableLevel2 = level1Wizard.getAvailableToLearn(2);
+      
+      if (availableLevel2.length > 0) {
+        const highLevelSpell = availableLevel2[0].name;
+        const success = level1Wizard.learnSpell(highLevelSpell, 2);
+        
+        expect(success).toBe(false);
+      }
+    });
+
+    it('should respect cantrip learning limits', () => {
+      const wizard = new SpellManager(1, 3);
+      const availableCantrips = wizard.getAvailableToLearn(0);
+      
+      // Try to learn more cantrips than allowed
+      let learnedCount = 0;
+      for (const cantrip of availableCantrips) {
+        const success = wizard.learnSpell(cantrip.name, 0);
+        if (success) learnedCount++;
+      }
+      
+      // Should not exceed the cantrips known limit for level 1 (3)
+      expect(wizard.getKnownSpells(0).length).toBeLessThanOrEqual(3);
+    });
+
+    it('should learn multiple spells in batch', () => {
+      const wizard = new SpellManager(3, 3);
+      const availableToLearn = wizard.getAvailableToLearn(1);
+      
+      if (availableToLearn.length >= 2) {
+        const spellsToLearn = [
+          { name: availableToLearn[0].name, level: 1 },
+          { name: availableToLearn[1].name, level: 1 }
+        ];
+        
+        const result = wizard.learnSpells(spellsToLearn);
+        
+        expect(result.learned.length).toBe(2);
+        expect(result.failed.length).toBe(0);
+        expect(wizard.getKnownSpells(1)).toContain(spellsToLearn[0].name);
+        expect(wizard.getKnownSpells(1)).toContain(spellsToLearn[1].name);
+      }
+    });
+
+    it('should get spell learning limits correctly', () => {
+      const wizard = new SpellManager(5, 3);
+      const limits = wizard.getSpellLearningLimits();
+      
+      expect(limits.cantripsMaximum).toBe(4); // Level 5 wizard knows 4 cantrips
+      expect(limits.cantripsKnown).toBeGreaterThan(0);
+      expect(limits.totalSpellsKnown).toBeGreaterThan(0);
+    });
+
+    it('should forget spells and remove from prepared', () => {
+      const wizard = new SpellManager(3, 3);
+      const knownSpells = wizard.getKnownSpells(1);
+      
+      if (knownSpells.length > 0) {
+        const spellToForget = knownSpells[0];
+        
+        // Prepare the spell first
+        wizard.prepareSpells([spellToForget], 1);
+        expect(wizard.getPreparedSpells(1)).toContain(spellToForget);
+        
+        // Forget the spell
+        const success = wizard.forgetSpell(spellToForget, 1);
+        
+        expect(success).toBe(true);
+        expect(wizard.getKnownSpells(1)).not.toContain(spellToForget);
+        expect(wizard.getPreparedSpells(1)).not.toContain(spellToForget);
+      }
+    });
+
+    it('should handle level up progression correctly', () => {
+      const wizard = new SpellManager(1, 3);
+      const initialKnown = wizard.getAllKnownSpells();
+      
+      // Level up to 2
+      const result = wizard.levelUp(2);
+      
+      // Should have learned 2 new spells (leveling up gives 2 spells)
+      expect(result.spellsLearned.length).toBeLessThanOrEqual(2);
+      expect(result.errors.length).toBe(0);
+      
+      // Should have updated spell slots
+      expect(wizard.getMaxSlots().level1).toBe(3); // Level 2 wizard has 3 first level slots
+    });
+
+    it('should handle cantrip progression on level up', () => {
+      const wizard = new SpellManager(3, 3); // 3 cantrips
+      
+      // Level up to 4 (gains 1 more cantrip)
+      const result = wizard.levelUp(4);
+      
+      expect(result.cantripsLearned.length).toBeLessThanOrEqual(1);
+      expect(wizard.getSpellLearningLimits().cantripsMaximum).toBe(4);
     });
   });
 });

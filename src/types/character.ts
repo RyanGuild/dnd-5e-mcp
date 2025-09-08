@@ -1,5 +1,6 @@
 import { CharacterInventory } from './equipment';
 import { EntityStatus } from './status';
+import { KnownSpells } from '../utils/spells';
 
 export interface AbilityScore {
   value: number;
@@ -94,6 +95,7 @@ export interface DNDCharacter {
   proficiencyBonus: number;
   equipment: string[];
   spells: string[];
+  knownSpells?: KnownSpells; // For wizard spellbooks
   features: string[];
   languages: string[];
   alignment: string;

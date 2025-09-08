@@ -71,7 +71,8 @@ async function loadCharacterOnStartup() {
       if (character.class.name === 'Wizard') {
         spellManager = new SpellManager(
           character.level,
-          character.abilityScores.intelligence.modifier
+          character.abilityScores.intelligence.modifier,
+          character.knownSpells
         );
       }
       
