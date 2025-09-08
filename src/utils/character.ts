@@ -264,6 +264,7 @@ export function createCharacter(data: Partial<DNDCharacter> & { fightingStyle?: 
     proficiencyBonus,
     equipment: data.equipment || [],
     spells: data.spells || [],
+    knownSpells: data.knownSpells,
     features: data.features || [],
     languages: data.languages || ['Common'],
     alignment: data.alignment || 'True Neutral',
