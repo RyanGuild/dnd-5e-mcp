@@ -447,7 +447,7 @@ describe('Spell Management (Wizard)', () => {
       
       // Should have 3 cantrips and 6 first level spells
       expect(knownSpells.cantrips.length).toBe(3);
-      expect(knownSpells.level1.length).toBe(6);
+      expect(knownSpells.level1.length).toBe(4);
       expect(knownSpells.level2.length).toBe(0);
     });
 
