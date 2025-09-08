@@ -80,11 +80,7 @@ export interface NPCEntity extends BaseEntity {
   alignment: string;
 }
 
-<<<<<<< HEAD
 export interface MonsterEntity extends Omit<BaseEntity, 'speed' | 'hitPoints'> {
-=======
-export interface MonsterEntity extends Omit<BaseEntity, 'speed'> {
->>>>>>> main
   type: 'monster';
   challengeRating: number;
   size: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
