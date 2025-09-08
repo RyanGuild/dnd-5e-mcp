@@ -347,7 +347,7 @@ describe('Dice Rolling Mechanics', () => {
     });
 
     it('should produce different results on multiple calls', () => {
-      const results = [];
+      const results: number[] = [];
       for (let i = 0; i < 10; i++) {
         results.push(rollDice(1, 20, 0).total);
       }
