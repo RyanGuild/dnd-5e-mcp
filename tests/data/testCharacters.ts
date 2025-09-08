@@ -144,6 +144,46 @@ export const testWarlock: Partial<DNDCharacter> = {
   equipmentProficiencies: ["Light armor", "Simple weapons"],
 };
 
+// Test Character 7: Half-Orc Barbarian - Berserker path
+export const testBarbarian: Partial<DNDCharacter> = {
+  name: "Gorak Bloodaxe",
+  level: 5,
+  class: { name: "Barbarian", level: 5, hitDie: 12 },
+  race: { name: "Half-Orc", size: "Medium", speed: 30, traits: ["Darkvision", "Relentless Endurance", "Savage Attacks"] },
+  background: {
+    name: "Outlander",
+    skillProficiencies: ["Athletics", "Survival"],
+    languages: ["Common", "Orc"],
+    equipment: ["Staff", "Hunting trap", "Trophy", "Traveler's clothes"],
+    feature: "Wanderer"
+  },
+  abilityScores: createTestAbilityScores(16, 14, 15, 10, 13, 12),
+  alignment: "Chaotic Neutral",
+  experiencePoints: 6500,
+  inventory: createEmptyInventory(),
+  equipmentProficiencies: ["Light armor", "Medium armor", "Shields", "Simple weapons", "Martial weapons"],
+};
+
+// Test Character 8: Human Barbarian - Totem Warrior path
+export const testTotemBarbarian: Partial<DNDCharacter> = {
+  name: "Thane Ironhide",
+  level: 8,
+  class: { name: "Barbarian", level: 8, hitDie: 12 },
+  race: { name: "Human", size: "Medium", speed: 30, traits: ["Extra Language", "Extra Skill"] },
+  background: {
+    name: "Hermit",
+    skillProficiencies: ["Medicine", "Religion"],
+    languages: ["Common", "Celestial", "Druidic"],
+    equipment: ["Scroll case", "Winter blanket", "Common clothes", "Herbalism kit"],
+    feature: "Discovery"
+  },
+  abilityScores: createTestAbilityScores(15, 12, 16, 13, 14, 10),
+  alignment: "Neutral Good",
+  experiencePoints: 14000,
+  inventory: createEmptyInventory(),
+  equipmentProficiencies: ["Light armor", "Medium armor", "Shields", "Simple weapons", "Martial weapons"],
+};
+
 // Edge case characters for testing validation
 export const invalidCharacters = {
   // Character with invalid level (too high)
@@ -247,4 +287,6 @@ export const allTestCharacters = [
   testPaladin,
   testCleric,
   testWarlock,
+  testBarbarian,
+  testTotemBarbarian,
 ];
