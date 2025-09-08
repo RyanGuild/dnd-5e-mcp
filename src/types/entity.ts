@@ -93,13 +93,12 @@ export interface NPCEntity extends BaseEntity {
   alignment: string;
 }
 
-export interface MonsterEntity extends BaseEntity {
+export interface MonsterEntity extends Omit<BaseEntity, 'speed' | 'hitPoints'> {
   type: 'monster';
   challengeRating: number;
   size: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
   creatureType: string; // e.g., "Beast", "Humanoid", "Dragon"
   alignment: string;
-  armorClass: number;
   hitPoints: {
     current: number;
     maximum: number;

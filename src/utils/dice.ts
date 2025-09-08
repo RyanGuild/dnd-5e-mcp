@@ -1,4 +1,4 @@
-import { DiceRoll, RollResult } from '../types/character.js';
+import { DiceRoll, RollResult } from '../types/character';
 
 export function rollDice(dice: number, sides: number, modifier: number = 0): RollResult {
   const rolls: number[] = [];
@@ -21,17 +21,53 @@ export function rollDice(dice: number, sides: number, modifier: number = 0): Rol
 }
 
 export function rollWithAdvantage(dice: number, sides: number, modifier: number = 0): RollResult {
-  const roll1 = rollDice(dice, sides, modifier);
-  const roll2 = rollDice(dice, sides, modifier);
+  const roll1 = rollDice(dice, sides, 0); // No modifier for individual rolls
+  const roll2 = rollDice(dice, sides, 0);
   
-  return roll1.total >= roll2.total ? roll1 : roll2;
+  // Combine rolls and take the higher total
+  const total1 = roll1.rolls.reduce((sum, roll) => sum + roll, 0);
+  const total2 = roll2.rolls.reduce((sum, roll) => sum + roll, 0);
+  
+  if (total1 >= total2) {
+    return {
+      rolls: [...roll1.rolls, ...roll2.rolls],
+      total: total1 + modifier,
+      natural20: roll1.natural20 || roll2.natural20,
+      natural1: roll1.natural1 || roll2.natural1
+    };
+  } else {
+    return {
+      rolls: [...roll1.rolls, ...roll2.rolls],
+      total: total2 + modifier,
+      natural20: roll1.natural20 || roll2.natural20,
+      natural1: roll1.natural1 || roll2.natural1
+    };
+  }
 }
 
 export function rollWithDisadvantage(dice: number, sides: number, modifier: number = 0): RollResult {
-  const roll1 = rollDice(dice, sides, modifier);
-  const roll2 = rollDice(dice, sides, modifier);
+  const roll1 = rollDice(dice, sides, 0); // No modifier for individual rolls
+  const roll2 = rollDice(dice, sides, 0);
   
-  return roll1.total <= roll2.total ? roll1 : roll2;
+  // Combine rolls and take the lower total
+  const total1 = roll1.rolls.reduce((sum, roll) => sum + roll, 0);
+  const total2 = roll2.rolls.reduce((sum, roll) => sum + roll, 0);
+  
+  if (total1 <= total2) {
+    return {
+      rolls: [...roll1.rolls, ...roll2.rolls],
+      total: total1 + modifier,
+      natural20: roll1.natural20 || roll2.natural20,
+      natural1: roll1.natural1 || roll2.natural1
+    };
+  } else {
+    return {
+      rolls: [...roll1.rolls, ...roll2.rolls],
+      total: total2 + modifier,
+      natural20: roll1.natural20 || roll2.natural20,
+      natural1: roll1.natural1 || roll2.natural1
+    };
+  }
 }
 
 export function rollAbilityCheck(abilityScore: number, proficiencyBonus: number, proficient: boolean = false): RollResult {
@@ -66,5 +102,12 @@ export function rollDamage(dice: number, sides: number, modifier: number = 0): R
 }
 
 export function rollHitDie(hitDie: number, constitutionModifier: number): RollResult {
-  return rollDice(1, hitDie, constitutionModifier);
+  const result = rollDice(1, hitDie, constitutionModifier);
+  
+  // Ensure minimum 1 HP gain
+  if (result.total < 1) {
+    result.total = 1;
+  }
+  
+  return result;
 }

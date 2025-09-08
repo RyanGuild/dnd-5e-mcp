@@ -118,3 +118,7 @@ Add 1 level of exhaustion from environmental effects, then check my exhaustion s
 - **Dev**: `npm run dev`
 
 The server automatically saves character data to `character.json` and loads it on startup.
+
+
+### Use Zod to create datastructures
+

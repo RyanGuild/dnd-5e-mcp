@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { DNDCharacter } from '../types/character.js';
-import { EntityCollection, GameEntity, CharacterEntity, NPCEntity, MonsterEntity } from '../types/entity.js';
+import { DNDCharacter } from '../types/character';
+import { EntityCollection, GameEntity, CharacterEntity, NPCEntity, MonsterEntity } from '../types/entity';
 
 const ENTITIES_FILE = join(homedir(), '.dnd-entities.json');
 

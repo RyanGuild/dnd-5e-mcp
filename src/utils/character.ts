@@ -1,5 +1,7 @@
-import { DNDCharacter, AbilityScores, Skill, SavingThrow, HitDice } from '../types/character.js';
-import { createEmptyInventory, calculateMaxWeight } from './inventory.js';
+import { DNDCharacter, AbilityScores, Skill, SavingThrow } from '../types/character';
+import { createEmptyInventory, calculateMaxWeight } from './inventory';
+import { initializeFighterFeatures, getFighterNumberOfAttacks } from './fighter';
+import { FIGHTER_CLASS, getFighterProficiencies } from '../data/classes';
 
 export function calculateAbilityModifier(score: number): number {
   return Math.floor((score - 10) / 2);
@@ -69,9 +71,17 @@ export function createSkills(abilityScores: AbilityScores, proficiencyBonus: num
   });
 }
 
-export function createSavingThrows(abilityScores: AbilityScores, proficiencyBonus: number, proficientSaves: string[] = []): SavingThrow[] {
+export function createSavingThrows(abilityScores: AbilityScores, proficiencyBonus: number, proficientSaves: string[] = [], className?: string): SavingThrow[] {
+  // Get class-specific saving throw proficiencies
+  let classSaves: string[] = [];
+  if (className === 'Fighter') {
+    classSaves = FIGHTER_CLASS.savingThrowProficiencies;
+  }
+  
+  const allProficientSaves = [...new Set([...proficientSaves, ...classSaves])];
+  
   return Object.entries(abilityScores).map(([ability, score]) => {
-    const proficient = proficientSaves.includes(ability);
+    const proficient = allProficientSaves.includes(ability);
     const modifier = score.modifier + (proficient ? proficiencyBonus : 0);
 
     return {
@@ -145,12 +155,22 @@ export function healCharacter(character: DNDCharacter, amount: number): { newCur
 
 export function damageCharacter(character: DNDCharacter, amount: number): { newCurrent: number; damage: number } {
   const oldCurrent = character.hitPoints.current;
+  const oldTemporary = character.hitPoints.temporary;
+  const originalAmount = amount;
+  
+  // Reduce temporary hit points first
+  if (character.hitPoints.temporary > 0) {
+    const tempDamage = Math.min(amount, character.hitPoints.temporary);
+    character.hitPoints.temporary -= tempDamage;
+    amount -= tempDamage;
+  }
+  
+  // Then reduce actual hit points
   const newCurrent = Math.max(0, oldCurrent - amount);
-  const damage = oldCurrent - newCurrent;
   
   character.hitPoints.current = newCurrent;
   
-  return { newCurrent, damage };
+  return { newCurrent, damage: originalAmount };
 }
 
 export function setCurrentHitPoints(character: DNDCharacter, amount: number): { newCurrent: number; changed: number } {
@@ -165,7 +185,7 @@ export function setCurrentHitPoints(character: DNDCharacter, amount: number): { 
 
 export function addTemporaryHitPoints(character: DNDCharacter, amount: number): { newTemporary: number; added: number } {
   const oldTemporary = character.hitPoints.temporary;
-  const newTemporary = Math.max(0, amount); // New temp HP replaces old temp HP
+  const newTemporary = Math.max(oldTemporary, amount); // New temp HP only replaces if higher
   const added = newTemporary - oldTemporary;
   
   character.hitPoints.temporary = newTemporary;
@@ -183,18 +203,19 @@ export function removeTemporaryHitPoints(character: DNDCharacter, amount: number
   return { newTemporary, removed };
 }
 
-export function createCharacter(data: Partial<DNDCharacter>): DNDCharacter {
+export function createCharacter(data: Partial<DNDCharacter> & { fightingStyle?: string }): DNDCharacter {
   const id = data.id || generateId();
   const level = data.level || 1;
   const proficiencyBonus = calculateProficiencyBonus(level);
+  const className = data.class?.name || 'Fighter';
   
   const abilityScores = data.abilityScores || createAbilityScores({});
   const skills = data.skills || createSkills(abilityScores, proficiencyBonus);
-  const savingThrows = data.savingThrows || createSavingThrows(abilityScores, proficiencyBonus);
+  const savingThrows = data.savingThrows || createSavingThrows(abilityScores, proficiencyBonus, [], className);
   
   const hitPoints = data.hitPoints || {
-    current: calculateHitPoints(level, data.class?.hitDie || 8, abilityScores.constitution.modifier),
-    maximum: calculateHitPoints(level, data.class?.hitDie || 8, abilityScores.constitution.modifier),
+    current: calculateHitPoints(level, data.class?.hitDie || getHitDieForClass(className), abilityScores.constitution.modifier),
+    maximum: calculateHitPoints(level, data.class?.hitDie || getHitDieForClass(className), abilityScores.constitution.modifier),
     temporary: 0
   };
 
@@ -207,13 +228,13 @@ export function createCharacter(data: Partial<DNDCharacter>): DNDCharacter {
   const armorClass = data.armorClass || calculateArmorClass(abilityScores.dexterity.modifier);
   const inventory = data.inventory || createEmptyInventory();
   inventory.maxWeight = calculateMaxWeight(abilityScores.strength.value);
-  const equipmentProficiencies = data.equipmentProficiencies || getDefaultEquipmentProficiencies(data.class?.name || 'Fighter');
+  const equipmentProficiencies = data.equipmentProficiencies || getDefaultEquipmentProficiencies(className);
 
-  return {
+  const character: DNDCharacter = {
     id,
     name: data.name || 'Unnamed Character',
     level,
-    class: data.class || { name: 'Fighter', level: 1, hitDie: 10 },
+    class: data.class || { name: className, level, hitDie: getHitDieForClass(className) },
     race: data.race || { name: 'Human', size: 'Medium', speed: 30, traits: [] },
     background: data.background || { name: 'Folk Hero', skillProficiencies: [], languages: [], equipment: [], feature: '' },
     abilityScores,
@@ -236,6 +257,57 @@ export function createCharacter(data: Partial<DNDCharacter>): DNDCharacter {
     equipmentProficiencies,
     exhaustionLevel: data.exhaustionLevel || 0
   };
+
+  // Initialize class-specific features
+  if (className === 'Fighter') {
+    initializeFighterFeatures(character, (data as any).fightingStyle);
+  }
+
+  return character;
+}
+
+export function getHitDieForClass(className: string): number {
+  const hitDieMap: { [key: string]: number } = {
+    'Barbarian': 12,
+    'Bard': 8,
+    'Cleric': 8,
+    'Druid': 8,
+    'Fighter': 10,
+    'Monk': 8,
+    'Paladin': 10,
+    'Ranger': 10,
+    'Rogue': 8,
+    'Sorcerer': 6,
+    'Warlock': 8,
+    'Wizard': 6
+  };
+  
+  return hitDieMap[className] || 8;
+}
+
+export function getAbilityForSkill(skillName: string): keyof AbilityScores {
+  const skillAbilityMap: { [key: string]: keyof AbilityScores } = {
+    'Acrobatics': 'dexterity',
+    'Animal Handling': 'wisdom',
+    'Arcana': 'intelligence',
+    'Athletics': 'strength',
+    'Deception': 'charisma',
+    'History': 'intelligence',
+    'Insight': 'wisdom',
+    'Intimidation': 'charisma',
+    'Investigation': 'intelligence',
+    'Medicine': 'wisdom',
+    'Nature': 'intelligence',
+    'Perception': 'wisdom',
+    'Performance': 'charisma',
+    'Persuasion': 'charisma',
+    'Religion': 'intelligence',
+    'Sleight of Hand': 'dexterity',
+    'Stealth': 'dexterity',
+    'Survival': 'wisdom'
+  };
+  
+  return skillAbilityMap[skillName] || 'intelligence';
 }
 
 function getDefaultEquipmentProficiencies(className: string): string[] {

@@ -1,4 +1,4 @@
-import { CharacterInventory } from './equipment.js';
+import { CharacterInventory } from './equipment';
 
 export interface AbilityScore {
   value: number;
@@ -44,6 +44,20 @@ export interface CharacterClass {
   level: number;
   hitDie: number;
   spellcastingAbility?: keyof AbilityScores;
+  fightingStyle?: string;
+  subclass?: string;
+  classFeatures?: ClassFeatureInstance[];
+}
+
+export interface ClassFeatureInstance {
+  name: string;
+  level: number;
+  description: string;
+  type: 'passive' | 'action' | 'bonus_action' | 'reaction' | 'resource';
+  uses?: number;
+  maxUses?: number;
+  usesType?: 'per_rest' | 'per_long_rest' | 'per_short_rest' | 'per_day';
+  rechargeOn?: 'short_rest' | 'long_rest';
 }
 
 export interface Race {

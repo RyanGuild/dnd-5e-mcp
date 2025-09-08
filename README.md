@@ -5,6 +5,7 @@ A Model Context Protocol (MCP) server for managing D&D 5e characters, including 
 ## Features
 
 - **Character Creation**: Create D&D 5e characters with custom ability scores, classes, races, and backgrounds
+- **Fighter Class Support**: Complete Fighter class implementation with Fighting Styles, Second Wind, Action Surge, Indomitable, and Martial Archetypes (Champion, Battle Master, Eldritch Knight)
 - **Character Persistence**: Characters are automatically saved to and loaded from `~/.characters.json`
 - **Dice Rolling**: Roll various types of dice with modifiers, advantage, and disadvantage
 - **Game Mechanics**: Roll ability checks, saving throws, skill checks, attack rolls, and damage
@@ -14,6 +15,7 @@ A Model Context Protocol (MCP) server for managing D&D 5e characters, including 
 - **Resting System**: Complete short and long rest mechanics with hit dice spending and recovery
 - **Exhaustion Tracking**: Full exhaustion level system with effects and recovery
 - **Class Features**: Class-specific recovery during rests (Warlock spell slots, Fighter abilities, etc.)
+- **Hit Die Rolling**: Roll hit dice for healing during short rests
 
 ## Installation
 
@@ -46,8 +48,8 @@ npm run dev
 #### Character Management
 
 - **create_character**: Create a new D&D 5e character
-  - Parameters: `name`, `class`, `race`, `level` (optional), `abilityScores` (optional)
-  - Example: Create a level 1 Human Fighter named "Aragorn"
+  - Parameters: `name`, `class`, `race`, `level` (optional), `abilityScores` (optional), `fightingStyle` (optional, for Fighters), `subclass` (optional, for Fighters)
+  - Example: Create a level 1 Human Fighter named "Aragorn" with Defense fighting style and Champion subclass
 
 - **get_character**: Get current character information
   - Shows all character stats, ability scores, skills, and saving throws
@@ -154,6 +156,40 @@ npm run dev
 - **get_equipment_stats**: Get calculated equipment stats
   - Shows AC, attack bonus, damage bonus, speed modifier, and equipped items
 
+#### Fighter Class Features
+
+- **use_second_wind**: Use the Fighter's Second Wind ability to regain hit points
+  - Heals 1d10 + Fighter level HP, once per short/long rest
+  - Example: Regain hit points during combat
+
+- **use_action_surge**: Use the Fighter's Action Surge ability to gain an extra action
+  - Grants one additional action on your turn, once per short/long rest (twice at level 17+)
+  - Example: Make additional attacks in a single turn
+
+- **use_indomitable**: Use the Fighter's Indomitable ability to reroll a failed saving throw
+  - Reroll a failed saving throw, once per long rest (more uses at higher levels)
+  - Example: Reroll a failed Constitution save
+
+- **get_fighting_styles**: Get list of available Fighting Styles for Fighters
+  - Shows all six Fighting Styles: Archery, Defense, Dueling, Great Weapon Fighting, Protection, Two-Weapon Fighting
+  - Example: View Fighting Style options when creating a Fighter
+
+- **get_class_features**: Get current character's class features and abilities
+  - Shows all class features, uses remaining, and descriptions
+  - Example: Check remaining Second Wind and Action Surge uses
+
+- **short_rest**: Take a short rest to restore short rest abilities
+  - Restores Second Wind and Action Surge uses
+  - Example: Rest between encounters to regain abilities
+
+- **long_rest**: Take a long rest to restore all abilities and hit points
+  - Restores all hit points and all class features
+  - Example: Full recovery after a day of adventuring
+
+- **get_martial_archetypes**: Get list of available Martial Archetypes (subclasses) for Fighters
+  - Shows Champion, Battle Master, and Eldritch Knight with their features
+  - Example: View subclass options when creating a Fighter
+
 ## Character Data Structure
 
 The server maintains a complete D&D 5e character with:
@@ -218,19 +254,21 @@ The system automatically calculates effective stats based on exhaustion level an
 
 ## Example Usage
 
-1. Create a character:
+1. Create a Fighter character:
 ```json
 {
   "name": "Aragorn",
-  "class": "Ranger",
+  "class": "Fighter",
   "race": "Human",
   "level": 3,
+  "fightingStyle": "Defense",
+  "subclass": "Champion",
   "abilityScores": {
     "strength": 16,
     "dexterity": 14,
-    "constitution": 13,
+    "constitution": 15,
     "intelligence": 12,
-    "wisdom": 15,
+    "wisdom": 13,
     "charisma": 10
   }
 }
@@ -307,6 +345,8 @@ The project is built with TypeScript and uses the Model Context Protocol SDK. Th
 - `src/utils/rest.ts` - Resting system and exhaustion management
 - `src/utils/inventory.ts` - Inventory and equipment management
 - `src/utils/storage.ts` - Character persistence and file management
+- `src/utils/fighter.ts` - Fighter class-specific features and abilities
+- `src/data/classes.ts` - Class data structures and Fighting Styles
 
 ### Building
 
@@ -319,6 +359,77 @@ npm run build
 ```bash
 npm run dev
 ```
+
+## Docker
+
+### Using Pre-built Image
+The latest image is automatically built and published to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/ryanguild/dnd-character-mcp:latest
+docker run --rm -it ghcr.io/ryanguild/dnd-character-mcp:latest
+```
+
+### Build Locally
+```bash
+docker build -t dnd-character-mcp .
+```
+
+### Run
+
+#### Basic Usage
+- Run ephemeral (no persistence):
+```bash
+docker run --rm -it dnd-character-mcp
+```
+
+- Run with persistence (bind the container user's home file used by the server):
+```bash
+docker run --rm -it \
+  -v "$HOME/.dnd-entities.json":/home/nodejs/.dnd-entities.json \
+  --name dnd-character-mcp \
+  dnd-character-mcp
+```
+
+#### Docker MCP Gateway Compatible
+For use with Docker MCP Gateway, run with resource limits and security settings:
+```bash
+docker run -d \
+  --name dnd-character-mcp \
+  --cpus=1 \
+  --memory=2g \
+  --security-opt seccomp=unconfined \
+  --cap-drop=ALL \
+  --cap-add=CHOWN \
+  --cap-add=SETGID \
+  --cap-add=SETUID \
+  -v "$HOME/.dnd-entities.json":/home/nodejs/.dnd-entities.json \
+  ghcr.io/ryanguild/dnd-character-mcp:latest
+```
+
+#### MCP Gateway Integration
+The image includes proper labels for Docker MCP Gateway discovery:
+- `mcp.server.name`: dnd-character
+- `mcp.server.transport`: stdio
+- `mcp.server.capabilities`: character-management,inventory,dice-rolling
+
+#### Available Tags
+- `latest` - Latest stable release
+- `main` - Latest from main branch
+- `v1.0.0` - Specific version tags
+- `v1.0` - Major.minor version
+- `v1` - Major version
+
+#### CI/CD Pipeline
+The Docker image is automatically built and pushed to GitHub Container Registry on:
+- Push to `main`/`master` branch
+- Creation of version tags (e.g., `v1.0.0`)
+- Pull requests to `main`/`master` branch
+
+Notes:
+- The server uses stdio (no network port). Use this image with MCP-capable clients (e.g., Cursor) by pointing the MCP command to `node dist/index.js` inside the container or running the container and connecting via stdio.
+- Data persists to `/home/nodejs/.dnd-entities.json` in the container; bind-mount your host's `~/.dnd-entities.json` to keep data between runs.
+- Resource limits (1 CPU, 2GB RAM) align with Docker MCP Gateway recommendations.
 
 ## License
 

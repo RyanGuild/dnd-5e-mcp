@@ -18,8 +18,18 @@ import {
   damageCharacter, 
   setCurrentHitPoints, 
   addTemporaryHitPoints, 
-  removeTemporaryHitPoints 
+  removeTemporaryHitPoints,
+  getHitDieForClass,
+  getAbilityForSkill
 } from './utils/character.js';
+import { 
+  useSecondWind, 
+  useActionSurge, 
+  useIndomitable, 
+  restoreFighterFeatures,
+  getFighterFeatureDescriptions
+} from './utils/fighter.js';
+import { FIGHTING_STYLES, MARTIAL_ARCHETYPES } from './data/classes.js';
 import { validateCharacter, formatValidationResult } from './utils/validation.js';
 import { saveCharacter, loadCharacter, deleteCharacter, characterExists } from './utils/storage.js';
 import {
@@ -132,6 +142,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 wisdom: { type: 'number' },
                 charisma: { type: 'number' },
               },
+            },
+            fightingStyle: {
+              type: 'string',
+              description: 'Fighting Style for Fighter class (Archery, Defense, Dueling, Great Weapon Fighting, Protection, Two-Weapon Fighting)',
+              enum: ['Archery', 'Defense', 'Dueling', 'Great Weapon Fighting', 'Protection', 'Two-Weapon Fighting'],
+            },
+            subclass: {
+              type: 'string',
+              description: 'Subclass for Fighter (Champion, Battle Master, Eldritch Knight)',
+              enum: ['Champion', 'Battle Master', 'Eldritch Knight'],
             },
           },
           required: ['name', 'class', 'race'],
@@ -690,6 +710,56 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      // Fighter-specific tools
+      {
+        name: 'use_second_wind',
+        description: 'Use the Fighter\'s Second Wind ability to regain hit points',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'use_action_surge',
+        description: 'Use the Fighter\'s Action Surge ability to gain an extra action',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'use_indomitable',
+        description: 'Use the Fighter\'s Indomitable ability to reroll a failed saving throw',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_fighting_styles',
+        description: 'Get list of available Fighting Styles for Fighters',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_class_features',
+        description: 'Get current character\'s class features and abilities',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_martial_archetypes',
+        description: 'Get list of available Martial Archetypes (subclasses) for Fighters',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      // Rest and Recovery tools
       {
         name: 'short_rest',
         description: 'Take a short rest (1 hour) to spend hit dice and recover class features',
@@ -756,6 +826,150 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      // Entity Management Tools
+      {
+        name: 'list_entities',
+        description: 'List all entities (characters, NPCs, monsters) or filter by type',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['character', 'npc', 'monster'],
+              description: 'Filter by entity type (optional)',
+            },
+          },
+        },
+      },
+      {
+        name: 'create_npc',
+        description: 'Create a new NPC',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'NPC name',
+            },
+            role: {
+              type: 'string',
+              description: 'NPC role (e.g., Shopkeeper, Quest Giver, Guard)',
+            },
+            location: {
+              type: 'string',
+              description: 'Where the NPC is located',
+            },
+            level: {
+              type: 'number',
+              description: 'NPC level (optional, defaults to 1)',
+            },
+            abilityScores: {
+              type: 'object',
+              description: 'Custom ability scores (optional)',
+            },
+          },
+          required: ['name', 'role', 'location'],
+        },
+      },
+      {
+        name: 'create_monster',
+        description: 'Create a new monster',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Monster name',
+            },
+            challengeRating: {
+              type: 'number',
+              description: 'Challenge rating (0-30)',
+            },
+            creatureType: {
+              type: 'string',
+              description: 'Creature type (e.g., Beast, Humanoid, Dragon)',
+            },
+            size: {
+              type: 'string',
+              enum: ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'],
+              description: 'Monster size',
+            },
+            abilityScores: {
+              type: 'object',
+              description: 'Ability scores object',
+            },
+            hitPoints: {
+              type: 'object',
+              description: 'Hit points with maximum and hit dice',
+            },
+            armorClass: {
+              type: 'number',
+              description: 'Armor class',
+            },
+            speed: {
+              type: 'object',
+              description: 'Speed object with walk and optional other speeds',
+            },
+          },
+          required: ['name', 'challengeRating', 'creatureType', 'size', 'abilityScores', 'hitPoints', 'armorClass', 'speed'],
+        },
+      },
+      {
+        name: 'get_entity',
+        description: 'Get a specific entity by ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Entity ID',
+            },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'set_active_entity',
+        description: 'Set the active entity for operations',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Entity ID to set as active',
+            },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'delete_entity',
+        description: 'Delete an entity by ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Entity ID to delete',
+            },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'search_entities',
+        description: 'Search entities by name, class, race, role, or creature type',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query',
+            },
+          },
+          required: ['query'],
+        },
+      },
     ],
   };
 });
@@ -767,11 +981,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'create_character': {
-        const { name: charName, class: className, race, level = 1, abilityScores } = args as any;
+        const { name: charName, class: className, race, level = 1, abilityScores, fightingStyle, subclass } = args as any;
         
         const character = createCharacter({
           name: charName,
-          class: { name: className, level, hitDie: getHitDieForClass(className) },
+          class: { name: className, level, hitDie: getHitDieForClass(className), subclass: subclass },
           race: { name: race, size: 'Medium', speed: 30, traits: [] },
           level,
           abilityScores: abilityScores ? {
@@ -782,6 +996,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             wisdom: { value: abilityScores.wisdom || 10, modifier: calculateAbilityModifier(abilityScores.wisdom || 10) },
             charisma: { value: abilityScores.charisma || 10, modifier: calculateAbilityModifier(abilityScores.charisma || 10) },
           } : undefined,
+          fightingStyle: fightingStyle,
         });
 
         currentCharacter = character;
@@ -2227,6 +2442,202 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // Fighter-specific tool handlers
+      case 'use_second_wind': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const result = useSecondWind(currentCharacter);
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + (result.success ? '\nCharacter saved to character.json' : '')
+            }
+          ],
+          isError: !result.success
+        };
+      }
+
+      case 'use_action_surge': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const result = useActionSurge(currentCharacter);
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + (result.success ? '\nCharacter saved to character.json' : '')
+            }
+          ],
+          isError: !result.success
+        };
+      }
+
+      case 'use_indomitable': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const result = useIndomitable(currentCharacter);
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + (result.success ? '\nCharacter saved to character.json' : '')
+            }
+          ],
+          isError: !result.success
+        };
+      }
+
+      case 'get_fighting_styles': {
+        let stylesText = 'Available Fighting Styles for Fighters:\n\n';
+        
+        FIGHTING_STYLES.forEach(style => {
+          stylesText += `**${style.name}:** ${style.description}\n\n`;
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: stylesText
+            }
+          ]
+        };
+      }
+
+      // New Entity Management Tool Handlers
+      case 'list_entities': {
+        const { type } = args as any;
+        const entities = type ? await listEntitiesByType(type) : await listAllEntities();
+        
+        if (entities.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No ${type || 'entities'} found.`
+              }
+            ]
+          };
+        }
+
+        const entityList = entities.map(entity => {
+          if (isCharacter(entity)) {
+            return `${entity.name} (Level ${entity.level} ${entity.race.name} ${entity.class.name}) - ID: ${entity.id}`;
+          } else if (isNPC(entity)) {
+            return `${entity.name} (${entity.role} in ${entity.location}) - ID: ${entity.id}`;
+          } else if (isMonster(entity)) {
+            return `${entity.name} (CR ${entity.challengeRating} ${entity.creatureType}) - ID: ${entity.id}`;
+          }
+          return `${(entity as GameEntity).name} - ID: ${(entity as GameEntity).id}`;
+        }).join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `${type ? type.charAt(0).toUpperCase() + type.slice(1) : 'All'} entities:\n\n${entityList}`
+            }
+          ]
+        };
+      }
+
+      case 'create_npc': {
+        const { name, role, location, level, abilityScores } = args as any;
+        
+        const npc = await createNPCEntity({
+          name,
+          role,
+          location,
+          level,
+          abilityScores
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Created NPC: ${npc.name}\n` +
+                    `Role: ${npc.role}\n` +
+                    `Location: ${npc.location}\n` +
+                    `Level: ${npc.level}\n` +
+                    `AC: ${npc.armorClass}, HP: ${npc.hitPoints.current}/${npc.hitPoints.maximum}\n` +
+                    `ID: ${npc.id}`
+            }
+          ]
+        };
+      }
+
+      case 'get_class_features': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const descriptions = getFighterFeatureDescriptions(currentCharacter);
+        
+        if (descriptions.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${currentCharacter.name} has no class-specific features available.`
+              }
+            ]
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Class Features for ${currentCharacter.name} (Level ${currentCharacter.level} ${currentCharacter.class.name}):\n\n` +
+                    descriptions.join('\n\n')
+            }
+          ]
+        };
+      }
+
+      // Rest and Recovery tool handlers
       case 'short_rest': {
         if (!currentCharacter) {
           return {
@@ -2257,7 +2668,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const result = restManager.shortRest(hitDiceToSpend);
         await saveCharacter(currentCharacter);
-
         return {
           content: [
             {
@@ -2460,6 +2870,259 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // Entity Management tool handlers
+      case 'list_entities': {
+        const { type } = args as any;
+        const entities = type ? await listEntitiesByType(type) : await listAllEntities();
+        
+        if (entities.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No ${type || 'entities'} found.`
+              }
+            ]
+          };
+        }
+
+        const entityList = entities.map(entity => {
+          if (isCharacter(entity)) {
+            return `${entity.name} (Level ${entity.level} ${entity.race.name} ${entity.class.name}) - ID: ${entity.id}`;
+          } else if (isNPC(entity)) {
+            return `${entity.name} (${entity.role} in ${entity.location}) - ID: ${entity.id}`;
+          } else if (isMonster(entity)) {
+            return `${entity.name} (CR ${entity.challengeRating} ${entity.creatureType}) - ID: ${entity.id}`;
+          }
+          return `${(entity as GameEntity).name} - ID: ${(entity as GameEntity).id}`;
+        }).join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `${type ? type.charAt(0).toUpperCase() + type.slice(1) : 'All'} entities:\n\n${entityList}`
+            }
+          ]
+        };
+      }
+
+      case 'create_npc': {
+        const { name, role, location, level, abilityScores } = args as any;
+        
+        const npc = await createNPCEntity({
+          name,
+          role,
+          location,
+          level,
+          abilityScores
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Created NPC: ${npc.name}\n` +
+                    `Role: ${npc.role}\n` +
+                    `Location: ${npc.location}\n` +
+                    `Level: ${npc.level}\n` +
+                    `AC: ${npc.armorClass}, HP: ${npc.hitPoints.current}/${npc.hitPoints.maximum}\n` +
+                    `ID: ${npc.id}`
+            }
+          ]
+        };
+      }
+
+      case 'create_monster': {
+        const { name, challengeRating, creatureType, size, abilityScores, hitPoints, armorClass, speed } = args as any;
+        
+        const monster = await createMonsterEntity({
+          name,
+          challengeRating,
+          creatureType,
+          size,
+          abilityScores,
+          hitPoints,
+          armorClass,
+          speed
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Created Monster: ${monster.name}\n` +
+                    `Challenge Rating: ${monster.challengeRating}\n` +
+                    `Type: ${monster.creatureType}\n` +
+                    `Size: ${monster.size}\n` +
+                    `AC: ${monster.armorClass}, HP: ${monster.hitPoints.current}/${monster.hitPoints.maximum}\n` +
+                    `ID: ${monster.id}`
+            }
+          ]
+        };
+      }
+
+      case 'get_entity': {
+        const { id } = args as any;
+        const entity = await getEntity(id);
+        
+        if (!entity) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Entity with ID ${id} not found.`
+              }
+            ]
+          };
+        }
+
+        let entityInfo = `${entity.name} (${entity.type})\n` +
+                        `AC: ${entity.armorClass}, HP: ${entity.hitPoints.current}/${entity.hitPoints.maximum}\n` +
+                        `Speed: ${entity.speed} ft, Initiative: ${entity.initiative >= 0 ? '+' : ''}${entity.initiative}\n` +
+                        `ID: ${entity.id}\n\n`;
+
+        if (isCharacter(entity)) {
+          entityInfo += `Level ${entity.level} ${entity.race.name} ${entity.class.name}\n` +
+                       `Ability Scores: STR ${entity.abilityScores.strength.value} (${entity.abilityScores.strength.modifier >= 0 ? '+' : ''}${entity.abilityScores.strength.modifier}), ` +
+                       `DEX ${entity.abilityScores.dexterity.value} (${entity.abilityScores.dexterity.modifier >= 0 ? '+' : ''}${entity.abilityScores.dexterity.modifier}), ` +
+                       `CON ${entity.abilityScores.constitution.value} (${entity.abilityScores.constitution.modifier >= 0 ? '+' : ''}${entity.abilityScores.constitution.modifier}), ` +
+                       `INT ${entity.abilityScores.intelligence.value} (${entity.abilityScores.intelligence.modifier >= 0 ? '+' : ''}${entity.abilityScores.intelligence.modifier}), ` +
+                       `WIS ${entity.abilityScores.wisdom.value} (${entity.abilityScores.wisdom.modifier >= 0 ? '+' : ''}${entity.abilityScores.wisdom.modifier}), ` +
+                       `CHA ${entity.abilityScores.charisma.value} (${entity.abilityScores.charisma.modifier >= 0 ? '+' : ''}${entity.abilityScores.charisma.modifier})`;
+        } else if (isNPC(entity)) {
+          entityInfo += `Role: ${entity.role}\n` +
+                       `Location: ${entity.location}\n` +
+                       `Level: ${entity.level}`;
+        } else if (isMonster(entity)) {
+          entityInfo += `Challenge Rating: ${entity.challengeRating}\n` +
+                       `Type: ${entity.creatureType}\n` +
+                       `Size: ${entity.size}`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: entityInfo
+            }
+          ]
+        };
+      }
+
+      case 'set_active_entity': {
+        const { id } = args as any;
+        const entity = await getEntity(id);
+        
+        if (!entity) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Entity with ID ${id} not found.`
+              }
+            ]
+          };
+        }
+
+        await setActiveEntityById(id);
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Set active entity to: ${entity.name} (${entity.type})`
+            }
+          ]
+        };
+      }
+
+      case 'delete_entity': {
+        const { id } = args as any;
+        const entity = await getEntity(id);
+        
+        if (!entity) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Entity with ID ${id} not found.`
+              }
+            ]
+          };
+        }
+
+        await deleteEntityById(id);
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Deleted entity: ${entity.name} (${entity.type})`
+            }
+          ]
+        };
+      }
+
+      case 'search_entities': {
+        const { query } = args as any;
+        const entities = await searchEntities(query);
+        
+        if (entities.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No entities found matching "${query}".`
+              }
+            ]
+          };
+        }
+
+        const searchResults = entities.map(entity => {
+          if (isCharacter(entity)) {
+            return `${entity.name} (Level ${entity.level} ${entity.race.name} ${entity.class.name}) - ID: ${entity.id}`;
+          } else if (isNPC(entity)) {
+            return `${entity.name} (${entity.role} in ${entity.location}) - ID: ${entity.id}`;
+          } else if (isMonster(entity)) {
+            return `${entity.name} (CR ${entity.challengeRating} ${entity.creatureType}) - ID: ${entity.id}`;
+          }
+          return `${(entity as GameEntity).name} - ID: ${(entity as GameEntity).id}`;
+        }).join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Search results for "${query}":\n\n${searchResults}`
+            }
+          ]
+        };
+      }
+
+      case 'get_martial_archetypes': {
+        let archetypesText = 'Available Martial Archetypes (Fighter Subclasses):\n\n';
+        
+        MARTIAL_ARCHETYPES.forEach(archetype => {
+          archetypesText += `**${archetype.name}:**\n`;
+          archetypesText += `${archetype.description}\n\n`;
+          archetypesText += 'Features:\n';
+          archetype.features.forEach(feature => {
+            archetypesText += `• Level ${feature.level}: **${feature.name}** - ${feature.description}\n`;
+          });
+          archetypesText += '\n';
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: archetypesText
+            }
+          ]
+        };
+      }
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -2475,61 +3138,3 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 });
-
-// Helper function to get hit die for class
-function getHitDieForClass(className: string): number {
-  const hitDieMap: { [key: string]: number } = {
-    'Barbarian': 12,
-    'Bard': 8,
-    'Cleric': 8,
-    'Druid': 8,
-    'Fighter': 10,
-    'Monk': 8,
-    'Paladin': 10,
-    'Ranger': 10,
-    'Rogue': 8,
-    'Sorcerer': 6,
-    'Warlock': 8,
-    'Wizard': 6
-  };
-  
-  return hitDieMap[className] || 8;
-}
-
-// Helper function to get ability for skill
-function getAbilityForSkill(skillName: string): keyof AbilityScores {
-  const skillAbilityMap: { [key: string]: keyof AbilityScores } = {
-    'Athletics': 'strength',
-    'Acrobatics': 'dexterity',
-    'Sleight of Hand': 'dexterity',
-    'Stealth': 'dexterity',
-    'Arcana': 'intelligence',
-    'History': 'intelligence',
-    'Investigation': 'intelligence',
-    'Nature': 'intelligence',
-    'Religion': 'intelligence',
-    'Animal Handling': 'wisdom',
-    'Insight': 'wisdom',
-    'Medicine': 'wisdom',
-    'Perception': 'wisdom',
-    'Survival': 'wisdom',
-    'Deception': 'charisma',
-    'Intimidation': 'charisma',
-    'Performance': 'charisma',
-    'Persuasion': 'charisma'
-  };
-  
-  return skillAbilityMap[skillName] || 'intelligence';
-}
-
-// Start the server
-async function main() {
-  // Initialize character from file
-  await initializeCharacter();
-  
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('D&D Character MCP server running on stdio');
-}
-
-main().catch(console.error);
