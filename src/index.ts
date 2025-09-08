@@ -58,6 +58,9 @@ import {
   rollHitDie
 } from './utils/dice.js';
 import { SpellManager, WIZARD_SPELLS, WIZARD_SPELL_SLOTS } from './utils/spells.js';
+import { ClericSpellManager } from './utils/cleric-spells.js';
+import { ClericCharacter, createClericCharacter } from './utils/cleric-character.js';
+import { DIVINE_DOMAINS } from './data/cleric.js';
 import { 
   createCharacterEntity, 
   createNPCEntity, 
@@ -75,6 +78,8 @@ import { GameEntity, CharacterEntity, NPCEntity, MonsterEntity, isCharacter, isN
 // Character storage - will be loaded from file on startup
 let currentCharacter: DNDCharacter | null = null;
 let spellManager: SpellManager | null = null;
+let clericSpellManager: ClericSpellManager | null = null;
+let clericCharacter: ClericCharacter | null = null;
 
 // Load character from file on startup
 async function initializeCharacter() {
@@ -89,6 +94,26 @@ async function initializeCharacter() {
           currentCharacter.level,
           currentCharacter.abilityScores.intelligence.modifier
         );
+      }
+      
+      // Initialize cleric spell manager for clerics
+      if (currentCharacter.class.name === 'Cleric') {
+        // For now, default to Life domain if no domain is specified
+        // In a full implementation, domain would be stored with the character
+        const domainName = 'Life'; // This should be retrieved from character data
+        const domain = DIVINE_DOMAINS[domainName];
+        
+        clericSpellManager = new ClericSpellManager(
+          currentCharacter.level,
+          currentCharacter.abilityScores.wisdom.modifier,
+          domain.domainSpells
+        );
+        
+        try {
+          clericCharacter = new ClericCharacter(currentCharacter, domainName);
+        } catch (error) {
+          console.error('Failed to initialize cleric character:', error);
+        }
       }
     }
   } catch (error) {
@@ -117,7 +142,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             class: {
               type: 'string',
-              description: 'Character class (e.g., Fighter, Wizard, Rogue)',
+              description: 'Character class (e.g., Fighter, Wizard, Rogue, Cleric)',
+            },
+            domain: {
+              type: 'string',
+              description: 'Divine domain for Cleric (e.g., Life, Light, War, Knowledge, Nature, Tempest, Trickery). Required if class is Cleric.',
             },
             race: {
               type: 'string',
@@ -708,6 +737,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'get_divine_domain_info',
+        description: 'Get information about the cleric\'s divine domain (Cleric only)',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
         name: 'use_second_wind',
         description: 'Use the Fighter\'s Second Wind ability to regain hit points',
         inputSchema: {
@@ -716,8 +753,38 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'use_channel_divinity',
+        description: 'Use a Channel Divinity ability (Cleric only)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ability: {
+              type: 'string',
+              description: 'Name of the Channel Divinity ability to use',
+            },
+          },
+          required: ['ability'],
+        },
+      },
+      {
+        name: 'attempt_divine_intervention',
+        description: 'Attempt to use Divine Intervention (Cleric level 10+ only)',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
         name: 'use_action_surge',
         description: 'Use the Fighter\'s Action Surge ability to gain an extra action',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_domain_spells',
+        description: 'Get domain spells for the cleric (Cleric only)',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -926,11 +993,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'create_character': {
-        const { name: charName, class: className, race, level = 1, abilityScores, fightingStyle, subclass } = args as any;
+        const { name: charName, class: className, race, level = 1, abilityScores, domain, fightingStyle } = args as any;
+        
+        // Validate domain for clerics
+        if (className === 'Cleric' && !domain) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Domain is required for Cleric characters. Available domains: ' + Object.keys(DIVINE_DOMAINS).join(', ')
+              }
+            ],
+            isError: true
+          };
+        }
+        
+        if (className === 'Cleric' && domain && !DIVINE_DOMAINS[domain]) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Unknown domain: ${domain}. Available domains: ` + Object.keys(DIVINE_DOMAINS).join(', ')
+              }
+            ],
+            isError: true
+          };
+        }
         
         const character = createCharacter({
           name: charName,
-          class: { name: className, level, hitDie: getHitDieForClass(className), subclass: subclass },
+          class: { 
+            name: className, 
+            level, 
+            hitDie: getHitDieForClass(className),
+            spellcastingAbility: className === 'Cleric' ? 'wisdom' : className === 'Wizard' ? 'intelligence' : undefined
+          },
           race: { name: race, size: 'Medium', speed: 30, traits: [] },
           level,
           abilityScores: abilityScores ? {
@@ -954,6 +1051,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           );
         }
         
+        // Initialize cleric character and spell manager for clerics
+        if (character.class.name === 'Cleric') {
+          try {
+            clericCharacter = new ClericCharacter(character, domain);
+            clericSpellManager = clericCharacter.getSpellManager();
+          } catch (error) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Error creating cleric character: ${error instanceof Error ? error.message : String(error)}`
+                }
+              ],
+              isError: true
+            };
+          }
+        }
+        
         await saveCharacter(character);
 
         return {
@@ -961,7 +1076,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `Created character: ${character.name}\n` +
-                    `Level ${character.level} ${character.race.name} ${character.class.name}\n` +
+                    `Level ${character.level} ${character.race.name} ${character.class.name}${character.class.name === 'Cleric' && domain ? ` (${domain} Domain)` : ''}\n` +
                     `AC: ${character.armorClass}, HP: ${character.hitPoints.maximum}\n` +
                     `Ability Scores: STR ${character.abilityScores.strength.value} (${character.abilityScores.strength.modifier >= 0 ? '+' : ''}${character.abilityScores.strength.modifier}), ` +
                     `DEX ${character.abilityScores.dexterity.value} (${character.abilityScores.dexterity.modifier >= 0 ? '+' : ''}${character.abilityScores.dexterity.modifier}), ` +
@@ -969,6 +1084,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     `INT ${character.abilityScores.intelligence.value} (${character.abilityScores.intelligence.modifier >= 0 ? '+' : ''}${character.abilityScores.intelligence.modifier}), ` +
                     `WIS ${character.abilityScores.wisdom.value} (${character.abilityScores.wisdom.modifier >= 0 ? '+' : ''}${character.abilityScores.wisdom.modifier}), ` +
                     `CHA ${character.abilityScores.charisma.value} (${character.abilityScores.charisma.modifier >= 0 ? '+' : ''}${character.abilityScores.charisma.modifier})\n\n` +
+                    (character.class.name === 'Cleric' && clericCharacter ? 
+                      `Domain Features: ${clericCharacter.getClassFeatures().filter(f => f.includes(domain)).join(', ')}\n` +
+                      `Spellcasting: Wisdom-based, Save DC ${clericCharacter.getSpellManager().getSpellSaveDC()}, Attack Bonus +${clericCharacter.getSpellManager().getSpellAttackBonus()}\n` +
+                      `Channel Divinity: ${clericCharacter.getChannelDivinityInfo().maximum}/rest\n\n` : '') +
                     `Character saved to character.json`
             }
           ]
@@ -1955,21 +2074,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        if (!spellManager) {
+        if (!spellManager && !clericSpellManager) {
           return {
             content: [
               {
                 type: 'text',
-                text: 'Spell management is only available for wizards.'
+                text: 'Spell management is only available for spellcasting classes (Wizard, Cleric).'
               }
             ]
           };
         }
 
-        const currentSlots = spellManager.getCurrentSlots();
-        const maxSlots = spellManager.getMaxSlots();
+        const activeSpellManager = spellManager || clericSpellManager;
+        const currentSlots = activeSpellManager!.getCurrentSlots();
+        const maxSlots = activeSpellManager!.getMaxSlots();
         
-        let slotsText = `Spell Slots for ${currentCharacter.name} (Level ${currentCharacter.level} Wizard):\n\n`;
+        let slotsText = `Spell Slots for ${currentCharacter.name} (Level ${currentCharacter.level} ${currentCharacter.class.name}):\n\n`;
         
         for (let level = 1; level <= 9; level++) {
           const current = currentSlots[`level${level}` as keyof typeof currentSlots];
@@ -2001,19 +2121,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        if (!spellManager) {
+        if (!spellManager && !clericSpellManager) {
           return {
             content: [
               {
                 type: 'text',
-                text: 'Spell preparation is only available for wizards.'
+                text: 'Spell preparation is only available for spellcasting classes (Wizard, Cleric).'
               }
             ]
           };
         }
 
         const { level, spellNames } = args as any;
-        const success = spellManager.prepareSpells(spellNames, level);
+        const activeSpellManager = spellManager || clericSpellManager;
+        const success = activeSpellManager!.prepareSpells(spellNames, level);
 
         if (success) {
           return {
@@ -2049,12 +2170,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        if (!spellManager) {
+        if (!spellManager && !clericSpellManager) {
           return {
             content: [
               {
                 type: 'text',
-                text: 'Spell management is only available for wizards.'
+                text: 'Spell management is only available for spellcasting classes (Wizard, Cleric).'
               }
             ]
           };
@@ -2063,7 +2184,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { level } = args as any;
         
         if (level !== undefined) {
-          const spells = spellManager.getPreparedSpells(level);
+          const activeSpellManager = spellManager || clericSpellManager;
+          const spells = activeSpellManager!.getPreparedSpells(level);
           const levelName = level === 0 ? 'Cantrips' : `Level ${level}`;
           
           return {
@@ -2075,7 +2197,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ]
           };
         } else {
-          const allPrepared = spellManager.getAllPreparedSpells();
+          const activeSpellManager = spellManager || clericSpellManager;
+          const allPrepared = activeSpellManager!.getAllPreparedSpells();
           let spellsText = `All Prepared Spells for ${currentCharacter.name}:\n\n`;
           
           if (allPrepared.cantrips.length > 0) {
@@ -2125,7 +2248,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const { query, level } = args as any;
-        const results = spellManager.searchSpells(query, level);
+        const activeSpellManager = spellManager || clericSpellManager;
+        const results = activeSpellManager!.searchSpells(query, level);
         
         if (results.length === 0) {
           return {
@@ -2189,7 +2313,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const { spellName } = args as any;
-        const spell = spellManager.getSpellDetails(spellName);
+        const activeSpellManager = spellManager || clericSpellManager;
+        const spell = activeSpellManager!.getSpellDetails(spellName);
 
         if (!spell) {
           return {
@@ -2250,7 +2375,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const { spellName, level } = args as any;
-        const spell = spellManager.getSpellDetails(spellName);
+        const activeSpellManager = spellManager || clericSpellManager;
+        const spell = activeSpellManager!.getSpellDetails(spellName);
 
         if (!spell) {
           return {
@@ -2263,10 +2389,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const success = spellManager.castSpell(level);
+        const castSpellManager = spellManager || clericSpellManager;
+        const success = castSpellManager!.castSpell(level);
         
         if (success) {
-          const currentSlots = spellManager.getCurrentSlots();
+          const currentSlots = castSpellManager!.getCurrentSlots();
           const levelKey = `level${level}` as keyof typeof currentSlots;
           const remaining = currentSlots[levelKey];
           
@@ -2318,7 +2445,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { level } = args as any;
         
         if (level !== undefined) {
-          spellManager.restoreSlot(level);
+          const restoreSpellManager = spellManager || clericSpellManager;
+          restoreSpellManager!.restoreSlot(level);
           return {
             content: [
               {
@@ -2328,7 +2456,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ]
           };
         } else {
-          spellManager.restoreAllSlots();
+          const restoreAllSpellManager = spellManager || clericSpellManager;
+          restoreAllSpellManager!.restoreAllSlots();
           return {
             content: [
               {
@@ -2363,16 +2492,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const modifier = spellManager.getSpellcastingModifier();
-        const saveDC = spellManager.getSpellSaveDC();
-        const attackBonus = spellManager.getSpellAttackBonus();
+        const infoSpellManager = spellManager || clericSpellManager;
+        const modifier = infoSpellManager!.getSpellcastingModifier();
+        const saveDC = infoSpellManager!.getSpellSaveDC();
+        const attackBonus = infoSpellManager!.getSpellAttackBonus();
 
         return {
           content: [
             {
               type: 'text',
               text: `Spellcasting Information for ${currentCharacter.name}:\n\n` +
-                    `Spellcasting Ability: Intelligence (+${modifier})\n` +
+                    `Spellcasting Ability: ${currentCharacter.class.spellcastingAbility === 'wisdom' ? 'Wisdom' : 'Intelligence'} (+${modifier})\n` +
                     `Spell Save DC: ${saveDC}\n` +
                     `Spell Attack Bonus: +${attackBonus}`
             }
@@ -2380,6 +2510,242 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // Cleric-specific tool handlers
+      case 'get_divine_domain_info': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        if (!clericCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Divine domain information is only available for Cleric characters.'
+              }
+            ]
+          };
+        }
+
+        const domain = clericCharacter.getDomain();
+        const domainSpells = clericCharacter.getDomainSpells();
+        const channelDivinity = clericCharacter.getChannelDivinityInfo();
+        const classFeatures = clericCharacter.getClassFeatures().filter(f => f.includes(domain.name));
+
+        let domainText = `Divine Domain: ${domain.name}\n\n`;
+        domainText += `Description: ${domain.description}\n\n`;
+        
+        domainText += `Domain Features:\n`;
+        classFeatures.forEach(feature => {
+          domainText += `• ${feature}\n`;
+        });
+
+        domainText += `\nDomain Spells (always prepared):\n`;
+        for (const [level, spells] of Object.entries(domainSpells)) {
+          domainText += `  Level ${level}: ${spells.join(', ')}\n`;
+        }
+
+        domainText += `\nChannel Divinity Options:\n`;
+        channelDivinity.options.forEach(option => {
+          domainText += `• ${option}\n`;
+        });
+        domainText += `Uses: ${channelDivinity.current}/${channelDivinity.maximum} per rest\n`;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: domainText
+            }
+          ]
+        };
+      }
+
+      case 'use_channel_divinity': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+        if (!clericCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Channel Divinity is only available for Cleric characters.'
+              }
+            ]
+          };
+        }
+
+        const { ability } = args as any;
+        const channelDivinity = clericCharacter.getChannelDivinityInfo();
+
+        if (!channelDivinity.options.includes(ability)) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Unknown Channel Divinity ability: ${ability}. Available options: ${channelDivinity.options.join(', ')}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const success = clericCharacter.useChannelDivinity();
+        if (success) {
+          const remaining = clericCharacter.getChannelDivinityInfo().current;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${currentCharacter.name} used Channel Divinity: ${ability}\nRemaining uses: ${remaining}/${channelDivinity.maximum}`
+              }
+            ]
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No Channel Divinity uses remaining. You have ${channelDivinity.current}/${channelDivinity.maximum} uses left.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'attempt_divine_intervention': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        if (!clericCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Divine Intervention is only available for Cleric characters.'
+              }
+            ]
+          };
+        }
+
+        if (currentCharacter.level < 10) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Divine Intervention is only available to clerics of 10th level or higher.'
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const result = clericCharacter.attemptDivineIntervention();
+        
+        if (result.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Divine Intervention succeeded! ${currentCharacter.name}'s deity intervenes on their behalf.\n` +
+                      (currentCharacter.level >= 20 ? 'At 20th level, Divine Intervention automatically succeeds.' : 
+                       'You cannot use this feature again for 7 days.')
+              }
+            ]
+          };
+        } else if (result.canUseAgain) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Divine Intervention failed. The deity does not intervene at this time. You can try again after a long rest.`
+              }
+            ]
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Divine Intervention is not available. You must wait before attempting again.`
+              }
+            ]
+          };
+        }
+      }
+
+      case 'get_domain_spells': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        if (!clericCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Domain spells are only available for Cleric characters.'
+              }
+            ]
+          };
+        }
+
+        const domainSpells = clericCharacter.getDomainSpells();
+        const domain = clericCharacter.getDomain();
+        
+        let spellsText = `${domain.name} Domain Spells:\n\n`;
+        spellsText += 'These spells are always prepared and don\'t count against your spells prepared limit.\n\n';
+        
+        if (Object.keys(domainSpells).length === 0) {
+          spellsText += 'No domain spells available at your current level.';
+        } else {
+          for (const [level, spells] of Object.entries(domainSpells)) {
+            spellsText += `Level ${level}: ${spells.join(', ')}\n`;
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: spellsText
+            }
+          ]
+        };
+      }
+
+      // Fighter-specific tool handlers
       case 'use_second_wind': {
         if (!currentCharacter) {
           return {
@@ -2475,7 +2841,145 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      // New Entity Management Tool Handlers
+      case 'get_class_features': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const descriptions = getFighterFeatureDescriptions(currentCharacter);
+        
+        if (descriptions.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${currentCharacter.name} has no class-specific features available.`
+              }
+            ]
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Class Features for ${currentCharacter.name} (Level ${currentCharacter.level} ${currentCharacter.class.name}):\n\n` +
+                    descriptions.join('\n\n')
+            }
+          ]
+        };
+      }
+
+      case 'short_rest': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const restored = restoreFighterFeatures(currentCharacter, 'short');
+        await saveCharacter(currentCharacter);
+
+        let message = `${currentCharacter.name} takes a short rest.\n\n`;
+        if (restored.length > 0) {
+          message += `Restored features: ${restored.join(', ')}\n`;
+        } else {
+          message += 'No features were restored.\n';
+        }
+        message += 'Character saved to character.json';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message
+            }
+          ]
+        };
+      }
+
+      case 'long_rest': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        // Restore hit points to maximum
+        currentCharacter.hitPoints.current = currentCharacter.hitPoints.maximum;
+        currentCharacter.hitPoints.temporary = 0;
+
+        // Restore Fighter features
+        const restored = restoreFighterFeatures(currentCharacter, 'long');
+        
+        // Restore spell slots for wizards
+        if (spellManager) {
+          spellManager.restoreAllSlots();
+        }
+
+        await saveCharacter(currentCharacter);
+
+        let message = `${currentCharacter.name} takes a long rest.\n\n`;
+        message += `Hit points fully restored: ${currentCharacter.hitPoints.maximum}/${currentCharacter.hitPoints.maximum}\n`;
+        if (restored.length > 0) {
+          message += `Restored features: ${restored.join(', ')}\n`;
+        }
+        if (spellManager) {
+          message += 'All spell slots restored\n';
+        }
+        message += 'Character saved to character.json';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message
+            }
+          ]
+        };
+      }
+
+      case 'get_martial_archetypes': {
+        let archetypesText = 'Available Martial Archetypes (Fighter Subclasses):\n\n';
+        
+        MARTIAL_ARCHETYPES.forEach(archetype => {
+          archetypesText += `**${archetype.name}:**\n`;
+          archetypesText += `${archetype.description}\n\n`;
+          archetypesText += 'Features:\n';
+          archetype.features.forEach(feature => {
+            archetypesText += `• Level ${feature.level}: **${feature.name}** - ${feature.description}\n`;
+          });
+          archetypesText += '\n';
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: archetypesText
+            }
+          ]
+        };
+      }
+
+      // Entity Management Tool Handlers
       case 'list_entities': {
         const { type } = args as any;
         const entities = type ? await listEntitiesByType(type) : await listAllEntities();
