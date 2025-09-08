@@ -1,4 +1,4 @@
-import { Armor } from '../types/equipment.js';
+import { Armor } from '../types/equipment';
 
 export const ARMOR: Armor[] = [
   // Light Armor

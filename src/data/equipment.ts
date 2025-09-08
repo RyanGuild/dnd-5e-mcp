@@ -1,4 +1,4 @@
-import { Equipment } from '../types/equipment.js';
+import { Equipment } from '../types/equipment';
 
 export const EQUIPMENT: Equipment[] = [
   // Adventuring Gear
