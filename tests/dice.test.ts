@@ -347,7 +347,7 @@ describe('Dice Rolling Mechanics', () => {
     });
 
     it('should produce different results on multiple calls', () => {
-      const results = [];
+      const results: number[] = [];
       for (let i = 0; i < 10; i++) {
         results.push(rollDice(1, 20, 0).total);
       }
@@ -357,14 +357,12 @@ describe('Dice Rolling Mechanics', () => {
       expect(uniqueResults.size).toBeGreaterThan(1);
     });
 
-    it('should handle zero dice', () => {
-      const result = rollDice(0, 20, 5);
-      expect(result.rolls).toEqual([]);
-      expect(result.total).toBe(5); // Just the modifier
+    it('rolling zero dice should throw an error', () => {
+      expect(() => rollDice(0, 20, 5)).toThrow();
     });
 
     it('should handle zero-sided dice gracefully', () => {
-      expect(() => rollDice(1, 0, 0)).not.toThrow();
+      expect(() => rollDice(1, 0, 0)).toThrow();
     });
 
     it('should handle very large numbers of dice', () => {

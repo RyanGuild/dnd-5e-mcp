@@ -1,5 +1,7 @@
 import { DNDCharacter, AbilityScores, Skill, SavingThrow } from '../types/character';
 import { createEmptyInventory, calculateMaxWeight } from './inventory';
+import { z } from 'zod';
+import { AbilityScoresSchema } from './validation';
 import { initializeFighterFeatures, getFighterNumberOfAttacks } from './fighter';
 import { FIGHTER_CLASS, getFighterProficiencies } from '../data/classes';
 
@@ -25,11 +27,25 @@ export function createAbilityScores(scores: Partial<AbilityScores>): AbilityScor
 
   for (const [ability, score] of Object.entries(scores)) {
     if (score && typeof score === 'object' && 'value' in score) {
+      // Validate individual ability score values
+      const abilityValue = z.number().min(1).max(30).safeParse(score.value);
+      
+      if (!abilityValue.success) {
+        throw new Error(`Invalid ability score for ${ability}: ${abilityValue.error.message}`);
+      }
+      
       result[ability as keyof AbilityScores] = {
         value: score.value,
         modifier: calculateAbilityModifier(score.value)
       };
     }
+  }
+
+  // Validate the final ability scores structure
+  const validation = AbilityScoresSchema.safeParse(result);
+  
+  if (!validation.success) {
+    throw new Error(`Invalid ability scores: ${validation.error.message}`);
   }
 
   return result;

@@ -3,6 +3,8 @@ import { DNDCharacter } from '../types/character';
 import { WEAPONS } from '../data/weapons';
 import { ARMOR } from '../data/armor';
 import { EQUIPMENT } from '../data/equipment';
+import { z } from 'zod';
+import { InventoryItemSchema, AddItemInputSchema, RemoveItemInputSchema, EquipItemInputSchema } from './validation';
 
 export function createEmptyInventory(): CharacterInventory {
   return {
@@ -35,9 +37,16 @@ export function addItemToInventory(
   equipped: boolean = false,
   notes?: string
 ): CharacterInventory {
-  // Validate quantity
-  if (quantity <= 0) {
-    return inventory; // Don't add items with zero or negative quantity
+  // Validate input using Zod schema
+  const inputValidation = AddItemInputSchema.safeParse({
+    itemId: item.id,
+    quantity,
+    equipped,
+    notes
+  });
+  
+  if (!inputValidation.success) {
+    throw new Error(`Invalid input for adding item: ${inputValidation.error.message}`);
   }
   
   const existingItem = inventory.items.find(i => i.item.id === item.id);
@@ -52,6 +61,13 @@ export function addItemToInventory(
       equipped,
       notes
     };
+    
+    // Validate the new inventory item
+    const itemValidation = InventoryItemSchema.safeParse(newItem);
+    if (!itemValidation.success) {
+      throw new Error(`Invalid inventory item: ${itemValidation.error.message}`);
+    }
+    
     inventory.items.push(newItem);
   }
   
@@ -64,6 +80,16 @@ export function removeItemFromInventory(
   itemId: string,
   quantity: number = 1
 ): CharacterInventory {
+  // Validate input using Zod schema
+  const inputValidation = RemoveItemInputSchema.safeParse({
+    itemId,
+    quantity
+  });
+  
+  if (!inputValidation.success) {
+    throw new Error(`Invalid input for removing item: ${inputValidation.error.message}`);
+  }
+  
   const itemIndex = inventory.items.findIndex(i => i.item.id === itemId);
   
   if (itemIndex === -1) {
@@ -87,6 +113,13 @@ export function removeItemFromInventory(
 }
 
 export function equipItem(inventory: CharacterInventory, itemId: string): CharacterInventory {
+  // Validate input using Zod schema
+  const inputValidation = EquipItemInputSchema.safeParse({ itemId });
+  
+  if (!inputValidation.success) {
+    throw new Error(`Invalid input for equipping item: ${inputValidation.error.message}`);
+  }
+  
   const item = inventory.items.find(i => i.item.id === itemId);
   
   if (!item) {
@@ -113,6 +146,13 @@ export function equipItem(inventory: CharacterInventory, itemId: string): Charac
 }
 
 export function unequipItem(inventory: CharacterInventory, itemId: string): CharacterInventory {
+  // Validate input using Zod schema
+  const inputValidation = EquipItemInputSchema.safeParse({ itemId });
+  
+  if (!inputValidation.success) {
+    throw new Error(`Invalid input for unequipping item: ${inputValidation.error.message}`);
+  }
+  
   const item = inventory.items.find(i => i.item.id === itemId);
   
   if (!item) {

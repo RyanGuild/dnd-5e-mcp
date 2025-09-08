@@ -1,6 +1,15 @@
 import { DiceRoll, RollResult } from '../types/character';
+import { z } from 'zod';
+import { DiceRollSchema, RollResultSchema } from './validation';
 
 export function rollDice(dice: number, sides: number, modifier: number = 0): RollResult {
+  // Validate input parameters
+  const diceRollValidation = DiceRollSchema.safeParse({ dice, sides, modifier });
+  
+  if (!diceRollValidation.success) {
+    throw new Error(`Invalid dice roll parameters: ${diceRollValidation.error.message}`);
+  }
+
   const rolls: number[] = [];
   let total = 0;
 
@@ -12,12 +21,21 @@ export function rollDice(dice: number, sides: number, modifier: number = 0): Rol
 
   total += modifier;
 
-  return {
+  const result: RollResult = {
     rolls,
     total,
     natural20: rolls.some(roll => roll === 20),
     natural1: rolls.some(roll => roll === 1)
   };
+
+  // Validate the result
+  const resultValidation = RollResultSchema.safeParse(result);
+  
+  if (!resultValidation.success) {
+    throw new Error(`Invalid roll result: ${resultValidation.error.message}`);
+  }
+
+  return result;
 }
 
 export function rollWithAdvantage(dice: number, sides: number, modifier: number = 0): RollResult {
