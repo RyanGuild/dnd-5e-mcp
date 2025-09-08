@@ -62,6 +62,11 @@ export async function createCharacterEntity(characterData: {
       maximum: 0,
       temporary: 0
     },
+    hitDice: {
+      current: level,
+      maximum: level,
+      size: getHitDieForClass(characterData.class)
+    },
     armorClass: 10 + abilityScores.dexterity.modifier,
     initiative: abilityScores.dexterity.modifier,
     speed: getSpeedForRace(characterData.race),
@@ -75,6 +80,7 @@ export async function createCharacterEntity(characterData: {
     notes: '',
     inventory: { items: [], equipped: { weapons: [], armor: [], shield: null } },
     equipmentProficiencies: [],
+    exhaustionLevel: 0,
     created: new Date(),
     modified: new Date()
   };

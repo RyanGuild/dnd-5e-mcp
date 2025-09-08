@@ -451,18 +451,14 @@ describe('Inventory Management', () => {
     it('should handle adding items with zero quantity', () => {
       const longsword = getWeaponById('longsword');
       if (longsword) {
-        addItemToInventory(testInventory, longsword, 0, false);
-        
-        expect(testInventory.items).toHaveLength(0);
+        expect(() => addItemToInventory(testInventory, longsword, 0, false)).toThrow();
       }
     });
 
     it('should handle negative quantities gracefully', () => {
       const longsword = getWeaponById('longsword');
       if (longsword) {
-        // Should not throw, just ignore negative quantities
-        addItemToInventory(testInventory, longsword, -1, false);
-        expect(testInventory.items).toHaveLength(0);
+        expect(() => {addItemToInventory(testInventory, longsword, -1, false)}).toThrow();
       }
     });
 

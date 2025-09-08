@@ -32,7 +32,13 @@ To use this MCP server with Cursor, add the following to your Cursor MCP setting
         "roll_skill_check",
         "roll_attack",
         "roll_damage",
-        "roll_hit_die"
+        "roll_hit_die",
+        "short_rest",
+        "long_rest",
+        "add_exhaustion",
+        "remove_exhaustion",
+        "get_exhaustion_status",
+        "get_hit_dice_status"
       ]
     }
   }
@@ -65,6 +71,14 @@ To use this MCP server with Cursor, add the following to your Cursor MCP setting
 - `roll_damage` - Roll damage dice
 - `roll_hit_die` - Roll hit dice for healing
 
+### Resting and Recovery
+- `short_rest` - Take a short rest to spend hit dice and recover class features
+- `long_rest` - Take a long rest to fully recover hit points, spell slots, and reduce exhaustion
+- `add_exhaustion` - Add exhaustion levels to the character
+- `remove_exhaustion` - Remove exhaustion levels from the character
+- `get_exhaustion_status` - Get current exhaustion level and effects
+- `get_hit_dice_status` - Get current hit dice available for short rests
+
 ## Usage Examples
 
 ### Create a Character
@@ -85,6 +99,16 @@ Roll a d20 with advantage for a Strength check.
 ### Search Items
 ```
 Search for all sword-type weapons available.
+```
+
+### Take a Rest
+```
+Take a short rest and spend 2 hit dice to heal.
+```
+
+### Manage Exhaustion
+```
+Add 1 level of exhaustion from environmental effects, then check my exhaustion status.
 ```
 
 ## Development

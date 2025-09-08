@@ -313,7 +313,10 @@ const CreateCharacterInputSchema = z.object({
     intelligence: z.number().min(1).max(30).optional(),
     wisdom: z.number().min(1).max(30).optional(),
     charisma: z.number().min(1).max(30).optional()
-  }).optional()
+  }).optional(),
+  domain: z.string().optional(),
+  fightingStyle: z.string().optional(),
+  subclass: z.string().optional()
 });
 
 const UpdateCharacterInputSchema = z.object({

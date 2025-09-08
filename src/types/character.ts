@@ -33,11 +33,31 @@ export interface HitPoints {
   temporary: number;
 }
 
+export interface HitDice {
+  current: number;
+  maximum: number;
+  size: number;
+}
+
 export interface CharacterClass {
   name: string;
   level: number;
   hitDie: number;
   spellcastingAbility?: keyof AbilityScores;
+  fightingStyle?: string;
+  subclass?: string;
+  classFeatures?: ClassFeatureInstance[];
+}
+
+export interface ClassFeatureInstance {
+  name: string;
+  level: number;
+  description: string;
+  type: 'passive' | 'action' | 'bonus_action' | 'reaction' | 'resource';
+  uses?: number;
+  maxUses?: number;
+  usesType?: 'per_rest' | 'per_long_rest' | 'per_short_rest' | 'per_day';
+  rechargeOn?: 'short_rest' | 'long_rest';
 }
 
 export interface Race {
@@ -66,6 +86,7 @@ export interface DNDCharacter {
   skills: Skill[];
   savingThrows: SavingThrow[];
   hitPoints: HitPoints;
+  hitDice: HitDice;
   armorClass: number;
   initiative: number;
   speed: number;
@@ -79,6 +100,7 @@ export interface DNDCharacter {
   notes: string;
   inventory: CharacterInventory;
   equipmentProficiencies: string[];
+  exhaustionLevel: number;
 }
 
 export interface DiceRoll {

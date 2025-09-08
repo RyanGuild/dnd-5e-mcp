@@ -65,6 +65,11 @@ async function migrateFromLegacyCharacterFile(): Promise<EntityCollection> {
       skills: character.skills,
       savingThrows: character.savingThrows,
       hitPoints: character.hitPoints,
+      hitDice: character.hitDice || {
+        current: character.level,
+        maximum: character.level,
+        size: character.class.hitDie
+      },
       armorClass: character.armorClass,
       initiative: character.initiative,
       speed: character.speed,
@@ -78,6 +83,7 @@ async function migrateFromLegacyCharacterFile(): Promise<EntityCollection> {
       notes: character.notes,
       inventory: character.inventory,
       equipmentProficiencies: character.equipmentProficiencies,
+      exhaustionLevel: character.exhaustionLevel || 0,
       created: new Date(),
       modified: new Date()
     };
@@ -216,6 +222,7 @@ export async function saveCharacter(character: DNDCharacter): Promise<void> {
     skills: character.skills,
     savingThrows: character.savingThrows,
     hitPoints: character.hitPoints,
+    hitDice: character.hitDice,
     armorClass: character.armorClass,
     initiative: character.initiative,
     speed: character.speed,
@@ -229,6 +236,7 @@ export async function saveCharacter(character: DNDCharacter): Promise<void> {
     notes: character.notes,
     inventory: character.inventory,
     equipmentProficiencies: character.equipmentProficiencies,
+    exhaustionLevel: character.exhaustionLevel,
     created: new Date(),
     modified: new Date()
   };
@@ -256,6 +264,11 @@ export async function loadCharacter(): Promise<DNDCharacter | null> {
     skills: character.skills,
     savingThrows: character.savingThrows,
     hitPoints: character.hitPoints,
+    hitDice: character.hitDice || {
+      current: character.level,
+      maximum: character.level,
+      size: character.class.hitDie
+    },
     armorClass: character.armorClass,
     initiative: character.initiative,
     speed: character.speed,
@@ -268,7 +281,8 @@ export async function loadCharacter(): Promise<DNDCharacter | null> {
     experiencePoints: character.experiencePoints,
     notes: character.notes,
     inventory: character.inventory,
-    equipmentProficiencies: character.equipmentProficiencies
+    equipmentProficiencies: character.equipmentProficiencies,
+    exhaustionLevel: character.exhaustionLevel || 0
   };
 }
 
