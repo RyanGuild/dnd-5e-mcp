@@ -1,0 +1,42 @@
+# MCP Server Configuration
+
+To use this MCP server with Cursor, add the following to your Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "dnd-character": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/Users/ryanguild/dnd-character-mcp",
+      "enabled": true,
+      "alwaysAllow": [
+        "create_character",
+        "get_character",
+        "update_character",
+        "delete_character",
+        "add_item",
+        "remove_item",
+        "equip_item",
+        "unequip_item",
+        "get_inventory",
+        "search_items",
+        "get_equipment_stats",
+        "roll_dice",
+        "roll_ability_check",
+        "roll_saving_throw",
+        "roll_skill_check",
+        "roll_attack",
+        "roll_damage",
+        "roll_hit_die",
+        "short_rest",
+        "long_rest",
+        "add_exhaustion",
+        "remove_exhaustion",
+        "get_exhaustion_status",
+        "get_hit_dice_status"
+      ]
+    }
+  }
+}
+```

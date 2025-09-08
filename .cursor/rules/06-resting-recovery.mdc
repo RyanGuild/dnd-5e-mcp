@@ -1,0 +1,23 @@
+# Resting and Recovery Tools
+
+## Available Tools
+
+### Resting and Recovery
+- `short_rest` - Take a short rest to spend hit dice and recover class features
+- `long_rest` - Take a long rest to fully recover hit points, spell slots, and reduce exhaustion
+- `add_exhaustion` - Add exhaustion levels to the character
+- `remove_exhaustion` - Remove exhaustion levels from the character
+- `get_exhaustion_status` - Get current exhaustion level and effects
+- `get_hit_dice_status` - Get current hit dice available for short rests
+
+## Usage Examples
+
+### Take a Rest
+```
+Take a short rest and spend 2 hit dice to heal.
+```
+
+### Manage Exhaustion
+```
+Add 1 level of exhaustion from environmental effects, then check my exhaustion status.
+```

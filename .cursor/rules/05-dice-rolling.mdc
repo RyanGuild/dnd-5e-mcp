@@ -1,0 +1,19 @@
+# Dice Rolling Tools
+
+## Available Tools
+
+### Dice Rolling
+- `roll_dice` - Roll dice with optional modifiers
+- `roll_ability_check` - Roll an ability check for the current character
+- `roll_saving_throw` - Roll a saving throw for the current character
+- `roll_skill_check` - Roll a skill check for the current character
+- `roll_attack` - Roll an attack roll for the current character
+- `roll_damage` - Roll damage dice
+- `roll_hit_die` - Roll hit dice for healing
+
+## Usage Examples
+
+### Roll Dice
+```
+Roll a d20 with advantage for a Strength check.
+```

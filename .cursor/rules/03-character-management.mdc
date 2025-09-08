@@ -1,0 +1,16 @@
+# Character Management Tools
+
+## Available Tools
+
+### Character Management
+- `create_character` - Create a new D&D 5e character
+- `get_character` - Get current character information
+- `update_character` - Update character information
+- `delete_character` - Delete the current character
+
+## Usage Examples
+
+### Create a Character
+```
+Create a level 3 Human Fighter named "Aragorn" with 16 Strength, 14 Dexterity, 15 Constitution, 12 Intelligence, 13 Wisdom, and 10 Charisma.
+```
