@@ -20,6 +20,14 @@ import {
   addTemporaryHitPoints, 
   removeTemporaryHitPoints 
 } from './utils/character.js';
+import { 
+  useSecondWind, 
+  useActionSurge, 
+  useIndomitable, 
+  restoreFighterFeatures,
+  getFighterFeatureDescriptions
+} from './utils/fighter.js';
+import { FIGHTING_STYLES, MARTIAL_ARCHETYPES } from './data/classes.js';
 import { validateCharacter, formatValidationResult } from './utils/validation.js';
 import { saveCharacter, loadCharacter, deleteCharacter, characterExists } from './utils/storage.js';
 import {
@@ -131,6 +139,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 wisdom: { type: 'number' },
                 charisma: { type: 'number' },
               },
+            },
+            fightingStyle: {
+              type: 'string',
+              description: 'Fighting Style for Fighter class (Archery, Defense, Dueling, Great Weapon Fighting, Protection, Two-Weapon Fighting)',
+              enum: ['Archery', 'Defense', 'Dueling', 'Great Weapon Fighting', 'Protection', 'Two-Weapon Fighting'],
+            },
+            subclass: {
+              type: 'string',
+              description: 'Subclass for Fighter (Champion, Battle Master, Eldritch Knight)',
+              enum: ['Champion', 'Battle Master', 'Eldritch Knight'],
             },
           },
           required: ['name', 'class', 'race'],
@@ -689,6 +707,70 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      {
+        name: 'use_second_wind',
+        description: 'Use the Fighter\'s Second Wind ability to regain hit points',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'use_action_surge',
+        description: 'Use the Fighter\'s Action Surge ability to gain an extra action',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'use_indomitable',
+        description: 'Use the Fighter\'s Indomitable ability to reroll a failed saving throw',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_fighting_styles',
+        description: 'Get list of available Fighting Styles for Fighters',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_class_features',
+        description: 'Get current character\'s class features and abilities',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'short_rest',
+        description: 'Take a short rest to restore short rest abilities',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'long_rest',
+        description: 'Take a long rest to restore all abilities and hit points',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_martial_archetypes',
+        description: 'Get list of available Martial Archetypes (subclasses) for Fighters',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
   };
 });
@@ -700,11 +782,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'create_character': {
-        const { name: charName, class: className, race, level = 1, abilityScores } = args as any;
+        const { name: charName, class: className, race, level = 1, abilityScores, fightingStyle, subclass } = args as any;
         
         const character = createCharacter({
           name: charName,
-          class: { name: className, level, hitDie: getHitDieForClass(className) },
+          class: { name: className, level, hitDie: getHitDieForClass(className), subclass: subclass },
           race: { name: race, size: 'Medium', speed: 30, traits: [] },
           level,
           abilityScores: abilityScores ? {
@@ -715,6 +797,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             wisdom: { value: abilityScores.wisdom || 10, modifier: calculateAbilityModifier(abilityScores.wisdom || 10) },
             charisma: { value: abilityScores.charisma || 10, modifier: calculateAbilityModifier(abilityScores.charisma || 10) },
           } : undefined,
+          fightingStyle: fightingStyle,
         });
 
         currentCharacter = character;
@@ -2148,6 +2231,239 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     `Spellcasting Ability: Intelligence (+${modifier})\n` +
                     `Spell Save DC: ${saveDC}\n` +
                     `Spell Attack Bonus: +${attackBonus}`
+            }
+          ]
+        };
+      }
+
+      case 'use_second_wind': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const result = useSecondWind(currentCharacter);
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + (result.success ? '\nCharacter saved to character.json' : '')
+            }
+          ],
+          isError: !result.success
+        };
+      }
+
+      case 'use_action_surge': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const result = useActionSurge(currentCharacter);
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + (result.success ? '\nCharacter saved to character.json' : '')
+            }
+          ],
+          isError: !result.success
+        };
+      }
+
+      case 'use_indomitable': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const result = useIndomitable(currentCharacter);
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + (result.success ? '\nCharacter saved to character.json' : '')
+            }
+          ],
+          isError: !result.success
+        };
+      }
+
+      case 'get_fighting_styles': {
+        let stylesText = 'Available Fighting Styles for Fighters:\n\n';
+        
+        FIGHTING_STYLES.forEach(style => {
+          stylesText += `**${style.name}:** ${style.description}\n\n`;
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: stylesText
+            }
+          ]
+        };
+      }
+
+      case 'get_class_features': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const descriptions = getFighterFeatureDescriptions(currentCharacter);
+        
+        if (descriptions.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${currentCharacter.name} has no class-specific features available.`
+              }
+            ]
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Class Features for ${currentCharacter.name} (Level ${currentCharacter.level} ${currentCharacter.class.name}):\n\n` +
+                    descriptions.join('\n\n')
+            }
+          ]
+        };
+      }
+
+      case 'short_rest': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const restored = restoreFighterFeatures(currentCharacter, 'short');
+        await saveCharacter(currentCharacter);
+
+        let message = `${currentCharacter.name} takes a short rest.\n\n`;
+        if (restored.length > 0) {
+          message += `Restored features: ${restored.join(', ')}\n`;
+        } else {
+          message += 'No features were restored.\n';
+        }
+        message += 'Character saved to character.json';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message
+            }
+          ]
+        };
+      }
+
+      case 'long_rest': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        // Restore hit points to maximum
+        currentCharacter.hitPoints.current = currentCharacter.hitPoints.maximum;
+        currentCharacter.hitPoints.temporary = 0;
+
+        // Restore Fighter features
+        const restored = restoreFighterFeatures(currentCharacter, 'long');
+        
+        // Restore spell slots for wizards
+        if (spellManager) {
+          spellManager.restoreAllSlots();
+        }
+
+        await saveCharacter(currentCharacter);
+
+        let message = `${currentCharacter.name} takes a long rest.\n\n`;
+        message += `Hit points fully restored: ${currentCharacter.hitPoints.maximum}/${currentCharacter.hitPoints.maximum}\n`;
+        if (restored.length > 0) {
+          message += `Restored features: ${restored.join(', ')}\n`;
+        }
+        if (spellManager) {
+          message += 'All spell slots restored\n';
+        }
+        message += 'Character saved to character.json';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message
+            }
+          ]
+        };
+      }
+
+      case 'get_martial_archetypes': {
+        let archetypesText = 'Available Martial Archetypes (Fighter Subclasses):\n\n';
+        
+        MARTIAL_ARCHETYPES.forEach(archetype => {
+          archetypesText += `**${archetype.name}:**\n`;
+          archetypesText += `${archetype.description}\n\n`;
+          archetypesText += 'Features:\n';
+          archetype.features.forEach(feature => {
+            archetypesText += `• Level ${feature.level}: **${feature.name}** - ${feature.description}\n`;
+          });
+          archetypesText += '\n';
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: archetypesText
             }
           ]
         };

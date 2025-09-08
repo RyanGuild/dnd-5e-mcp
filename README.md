@@ -5,12 +5,14 @@ A Model Context Protocol (MCP) server for managing D&D 5e characters, including 
 ## Features
 
 - **Character Creation**: Create D&D 5e characters with custom ability scores, classes, races, and backgrounds
+- **Fighter Class Support**: Complete Fighter class implementation with Fighting Styles, Second Wind, Action Surge, Indomitable, and Martial Archetypes (Champion, Battle Master, Eldritch Knight)
 - **Character Persistence**: Characters are automatically saved to and loaded from `~/.characters.json`
 - **Dice Rolling**: Roll various types of dice with modifiers, advantage, and disadvantage
 - **Game Mechanics**: Roll ability checks, saving throws, skill checks, attack rolls, and damage
 - **Character Management**: View, update, and delete character information
 - **Inventory System**: Complete inventory management with weapons, armor, and equipment
 - **Equipment Stats**: Automatic calculation of AC, attack bonuses, and other equipment-based stats
+- **Rest System**: Short and long rest mechanics to restore class features and hit points
 - **Hit Die Rolling**: Roll hit dice for healing during short rests
 
 ## Installation
@@ -44,8 +46,8 @@ npm run dev
 #### Character Management
 
 - **create_character**: Create a new D&D 5e character
-  - Parameters: `name`, `class`, `race`, `level` (optional), `abilityScores` (optional)
-  - Example: Create a level 1 Human Fighter named "Aragorn"
+  - Parameters: `name`, `class`, `race`, `level` (optional), `abilityScores` (optional), `fightingStyle` (optional, for Fighters), `subclass` (optional, for Fighters)
+  - Example: Create a level 1 Human Fighter named "Aragorn" with Defense fighting style and Champion subclass
 
 - **get_character**: Get current character information
   - Shows all character stats, ability scores, skills, and saving throws
@@ -116,6 +118,40 @@ npm run dev
 - **get_equipment_stats**: Get calculated equipment stats
   - Shows AC, attack bonus, damage bonus, speed modifier, and equipped items
 
+#### Fighter Class Features
+
+- **use_second_wind**: Use the Fighter's Second Wind ability to regain hit points
+  - Heals 1d10 + Fighter level HP, once per short/long rest
+  - Example: Regain hit points during combat
+
+- **use_action_surge**: Use the Fighter's Action Surge ability to gain an extra action
+  - Grants one additional action on your turn, once per short/long rest (twice at level 17+)
+  - Example: Make additional attacks in a single turn
+
+- **use_indomitable**: Use the Fighter's Indomitable ability to reroll a failed saving throw
+  - Reroll a failed saving throw, once per long rest (more uses at higher levels)
+  - Example: Reroll a failed Constitution save
+
+- **get_fighting_styles**: Get list of available Fighting Styles for Fighters
+  - Shows all six Fighting Styles: Archery, Defense, Dueling, Great Weapon Fighting, Protection, Two-Weapon Fighting
+  - Example: View Fighting Style options when creating a Fighter
+
+- **get_class_features**: Get current character's class features and abilities
+  - Shows all class features, uses remaining, and descriptions
+  - Example: Check remaining Second Wind and Action Surge uses
+
+- **short_rest**: Take a short rest to restore short rest abilities
+  - Restores Second Wind and Action Surge uses
+  - Example: Rest between encounters to regain abilities
+
+- **long_rest**: Take a long rest to restore all abilities and hit points
+  - Restores all hit points and all class features
+  - Example: Full recovery after a day of adventuring
+
+- **get_martial_archetypes**: Get list of available Martial Archetypes (subclasses) for Fighters
+  - Shows Champion, Battle Master, and Eldritch Knight with their features
+  - Example: View subclass options when creating a Fighter
+
 ## Character Data Structure
 
 The server maintains a complete D&D 5e character with:
@@ -144,19 +180,21 @@ This ensures your character data persists between server restarts and sessions, 
 
 ## Example Usage
 
-1. Create a character:
+1. Create a Fighter character:
 ```json
 {
   "name": "Aragorn",
-  "class": "Ranger",
+  "class": "Fighter",
   "race": "Human",
   "level": 3,
+  "fightingStyle": "Defense",
+  "subclass": "Champion",
   "abilityScores": {
     "strength": 16,
     "dexterity": 14,
-    "constitution": 13,
+    "constitution": 15,
     "intelligence": 12,
-    "wisdom": 15,
+    "wisdom": 13,
     "charisma": 10
   }
 }
@@ -206,6 +244,8 @@ The project is built with TypeScript and uses the Model Context Protocol SDK. Th
 - `src/types/character.ts` - TypeScript interfaces for D&D character data
 - `src/utils/character.ts` - Character creation and calculation utilities
 - `src/utils/dice.ts` - Dice rolling and game mechanics utilities
+- `src/utils/fighter.ts` - Fighter class-specific features and abilities
+- `src/data/classes.ts` - Class data structures and Fighting Styles
 
 ### Building
 
