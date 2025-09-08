@@ -1,5 +1,5 @@
-import { DNDCharacter, HitDice } from '../types/character.js';
-import { rollDice } from './dice.js';
+import { DNDCharacter, HitDice } from '../types/character';
+import { rollDice } from './dice';
 
 export interface RestResult {
   success: boolean;
