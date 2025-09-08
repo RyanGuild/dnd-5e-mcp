@@ -33,6 +33,12 @@ export interface HitPoints {
   temporary: number;
 }
 
+export interface HitDice {
+  current: number;
+  maximum: number;
+  size: number;
+}
+
 export interface CharacterClass {
   name: string;
   level: number;
@@ -80,6 +86,7 @@ export interface DNDCharacter {
   skills: Skill[];
   savingThrows: SavingThrow[];
   hitPoints: HitPoints;
+  hitDice: HitDice;
   armorClass: number;
   initiative: number;
   speed: number;
@@ -93,6 +100,7 @@ export interface DNDCharacter {
   notes: string;
   inventory: CharacterInventory;
   equipmentProficiencies: string[];
+  exhaustionLevel: number;
 }
 
 export interface DiceRoll {

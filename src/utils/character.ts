@@ -219,6 +219,12 @@ export function createCharacter(data: Partial<DNDCharacter> & { fightingStyle?: 
     temporary: 0
   };
 
+  const hitDice = data.hitDice || {
+    current: level,
+    maximum: level,
+    size: data.class?.hitDie || 10
+  };
+
   const armorClass = data.armorClass || calculateArmorClass(abilityScores.dexterity.modifier);
   const inventory = data.inventory || createEmptyInventory();
   inventory.maxWeight = calculateMaxWeight(abilityScores.strength.value);
@@ -235,6 +241,7 @@ export function createCharacter(data: Partial<DNDCharacter> & { fightingStyle?: 
     skills,
     savingThrows,
     hitPoints,
+    hitDice,
     armorClass,
     initiative: data.initiative || abilityScores.dexterity.modifier,
     speed: data.speed || 30,
@@ -247,7 +254,8 @@ export function createCharacter(data: Partial<DNDCharacter> & { fightingStyle?: 
     experiencePoints: data.experiencePoints || 0,
     notes: data.notes || '',
     inventory,
-    equipmentProficiencies
+    equipmentProficiencies,
+    exhaustionLevel: data.exhaustionLevel || 0
   };
 
   // Initialize class-specific features
@@ -258,7 +266,7 @@ export function createCharacter(data: Partial<DNDCharacter> & { fightingStyle?: 
   return character;
 }
 
-function getHitDieForClass(className: string): number {
+export function getHitDieForClass(className: string): number {
   const hitDieMap: { [key: string]: number } = {
     'Barbarian': 12,
     'Bard': 8,
@@ -275,6 +283,31 @@ function getHitDieForClass(className: string): number {
   };
   
   return hitDieMap[className] || 8;
+}
+
+export function getAbilityForSkill(skillName: string): keyof AbilityScores {
+  const skillAbilityMap: { [key: string]: keyof AbilityScores } = {
+    'Acrobatics': 'dexterity',
+    'Animal Handling': 'wisdom',
+    'Arcana': 'intelligence',
+    'Athletics': 'strength',
+    'Deception': 'charisma',
+    'History': 'intelligence',
+    'Insight': 'wisdom',
+    'Intimidation': 'charisma',
+    'Investigation': 'intelligence',
+    'Medicine': 'wisdom',
+    'Nature': 'intelligence',
+    'Perception': 'wisdom',
+    'Performance': 'charisma',
+    'Persuasion': 'charisma',
+    'Religion': 'intelligence',
+    'Sleight of Hand': 'dexterity',
+    'Stealth': 'dexterity',
+    'Survival': 'wisdom'
+  };
+  
+  return skillAbilityMap[skillName] || 'intelligence';
 }
 
 function getDefaultEquipmentProficiencies(className: string): string[] {

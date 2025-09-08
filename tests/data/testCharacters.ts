@@ -220,6 +220,7 @@ export const createCompleteCharacter = (partial: Partial<DNDCharacter>): DNDChar
       { ability: "charisma", proficient: false, modifier: 0 },
     ],
     hitPoints: partial.hitPoints || { current: 10, maximum: 10, temporary: 0 },
+    hitDice: partial.hitDice || { current: 1, maximum: 1, size: 10 },
     armorClass: partial.armorClass || 10,
     initiative: partial.initiative || 0,
     speed: partial.speed || 30,
@@ -233,6 +234,7 @@ export const createCompleteCharacter = (partial: Partial<DNDCharacter>): DNDChar
     notes: partial.notes || "",
     inventory: partial.inventory || createEmptyInventory(),
     equipmentProficiencies: partial.equipmentProficiencies || [],
+    exhaustionLevel: partial.exhaustionLevel || 0,
   };
 
   return { ...defaultCharacter, ...partial };

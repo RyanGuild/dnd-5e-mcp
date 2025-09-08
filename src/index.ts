@@ -18,7 +18,9 @@ import {
   damageCharacter, 
   setCurrentHitPoints, 
   addTemporaryHitPoints, 
-  removeTemporaryHitPoints 
+  removeTemporaryHitPoints,
+  getHitDieForClass,
+  getAbilityForSkill
 } from './utils/character.js';
 import { 
   useSecondWind, 
@@ -58,9 +60,8 @@ import {
   rollHitDie
 } from './utils/dice.js';
 import { SpellManager, WIZARD_SPELLS, WIZARD_SPELL_SLOTS } from './utils/spells.js';
+import { RestManager, getEffectiveMaxHitPoints, getEffectiveSpeed, hasAbilityCheckDisadvantage, hasAttackAndSaveDisadvantage, EXHAUSTION_EFFECTS } from './utils/rest.js';
 import { ClericSpellManager } from './utils/cleric-spells.js';
-import { ClericCharacter, createClericCharacter } from './utils/cleric-character.js';
-import { DIVINE_DOMAINS } from './data/cleric.js';
 import { 
   createCharacterEntity, 
   createNPCEntity, 
@@ -74,6 +75,8 @@ import {
   searchEntities
 } from './utils/entities.js';
 import { GameEntity, CharacterEntity, NPCEntity, MonsterEntity, isCharacter, isNPC, isMonster } from './types/entity.js';
+import { ClericCharacter } from './utils/cleric-character.js';
+import { DIVINE_DOMAINS } from './data/cleric.js';
 
 // Character storage - will be loaded from file on startup
 let currentCharacter: DNDCharacter | null = null;
@@ -736,6 +739,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      // Fighter-specific tools
       {
         name: 'get_divine_domain_info',
         description: 'Get information about the cleric\'s divine domain (Cleric only)',
@@ -815,22 +819,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'short_rest',
-        description: 'Take a short rest to restore short rest abilities',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'long_rest',
-        description: 'Take a long rest to restore all abilities and hit points',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
         name: 'get_martial_archetypes',
         description: 'Get list of available Martial Archetypes (subclasses) for Fighters',
         inputSchema: {
@@ -838,7 +826,74 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
-      // New Entity Management Tools
+      // Rest and Recovery tools
+      {
+        name: 'short_rest',
+        description: 'Take a short rest (1 hour) to spend hit dice and recover class features',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            hitDiceToSpend: {
+              type: 'number',
+              description: 'Number of hit dice to spend for healing (default: 0)',
+              default: 0,
+            },
+          },
+        },
+      },
+      {
+        name: 'long_rest',
+        description: 'Take a long rest (8 hours) to fully recover hit points, spell slots, and reduce exhaustion',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'add_exhaustion',
+        description: 'Add exhaustion levels to the character',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            levels: {
+              type: 'number',
+              description: 'Number of exhaustion levels to add (default: 1)',
+              default: 1,
+            },
+          },
+        },
+      },
+      {
+        name: 'remove_exhaustion',
+        description: 'Remove exhaustion levels from the character',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            levels: {
+              type: 'number',
+              description: 'Number of exhaustion levels to remove (default: 1)',
+              default: 1,
+            },
+          },
+        },
+      },
+      {
+        name: 'get_exhaustion_status',
+        description: 'Get current exhaustion level and effects',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_hit_dice_status',
+        description: 'Get current hit dice available for short rests',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      // Entity Management Tools
       {
         name: 'list_entities',
         description: 'List all entities (characters, NPCs, monsters) or filter by type',
@@ -1106,15 +1161,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
+        const effectiveMaxHP = getEffectiveMaxHitPoints(currentCharacter);
+        const effectiveSpeed = getEffectiveSpeed(currentCharacter);
+        const exhaustionInfo = EXHAUSTION_EFFECTS[currentCharacter.exhaustionLevel];
+
         return {
           content: [
             {
               type: 'text',
               text: `Character: ${currentCharacter.name}\n` +
                     `Level ${currentCharacter.level} ${currentCharacter.race.name} ${currentCharacter.class.name}\n` +
-                    `AC: ${currentCharacter.armorClass}, HP: ${currentCharacter.hitPoints.current}/${currentCharacter.hitPoints.maximum}${currentCharacter.hitPoints.temporary > 0 ? ` + ${currentCharacter.hitPoints.temporary} temp` : ''}\n` +
-                    `Speed: ${currentCharacter.speed} ft, Initiative: ${currentCharacter.initiative >= 0 ? '+' : ''}${currentCharacter.initiative}\n` +
-                    `Proficiency Bonus: +${currentCharacter.proficiencyBonus}\n\n` +
+                    `AC: ${currentCharacter.armorClass}, HP: ${currentCharacter.hitPoints.current}/${effectiveMaxHP}${effectiveMaxHP !== currentCharacter.hitPoints.maximum ? ` (${currentCharacter.hitPoints.maximum} max)` : ''}${currentCharacter.hitPoints.temporary > 0 ? ` + ${currentCharacter.hitPoints.temporary} temp` : ''}\n` +
+                    `Hit Dice: ${currentCharacter.hitDice.current}/${currentCharacter.hitDice.maximum} d${currentCharacter.hitDice.size}\n` +
+                    `Speed: ${effectiveSpeed} ft${effectiveSpeed !== currentCharacter.speed ? ` (${currentCharacter.speed} base)` : ''}, Initiative: ${currentCharacter.initiative >= 0 ? '+' : ''}${currentCharacter.initiative}\n` +
+                    `Proficiency Bonus: +${currentCharacter.proficiencyBonus}\n` +
+                    `Exhaustion: Level ${currentCharacter.exhaustionLevel}${currentCharacter.exhaustionLevel > 0 ? ` (${exhaustionInfo.name})` : ''}\n\n` +
                     `Ability Scores:\n` +
                     `  STR: ${currentCharacter.abilityScores.strength.value} (${currentCharacter.abilityScores.strength.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.strength.modifier})\n` +
                     `  DEX: ${currentCharacter.abilityScores.dexterity.value} (${currentCharacter.abilityScores.dexterity.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.dexterity.modifier})\n` +
@@ -1129,7 +1190,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     `Skills:\n` +
                     currentCharacter.skills.filter(s => s.proficient).map(s => 
                       `  ${s.name}: ${s.modifier >= 0 ? '+' : ''}${s.modifier} (proficient)`
-                    ).join('\n')
+                    ).join('\n') +
+                    (currentCharacter.exhaustionLevel > 0 ? `\n\nExhaustion Effects: ${exhaustionInfo.effects.join(', ')}` : '')
             }
           ]
         };
@@ -2543,17 +2605,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         domainText += `Description: ${domain.description}\n\n`;
         
         domainText += `Domain Features:\n`;
-        classFeatures.forEach(feature => {
+        classFeatures.forEach((feature: any) => {
           domainText += `• ${feature}\n`;
         });
 
         domainText += `\nDomain Spells (always prepared):\n`;
         for (const [level, spells] of Object.entries(domainSpells)) {
-          domainText += `  Level ${level}: ${spells.join(', ')}\n`;
+          domainText += `  Level ${level}: ${(spells as string[]).join(', ')}\n`;
         }
 
         domainText += `\nChannel Divinity Options:\n`;
-        channelDivinity.options.forEach(option => {
+        channelDivinity.options.forEach((option: any) => {
           domainText += `• ${option}\n`;
         });
         domainText += `Uses: ${channelDivinity.current}/${channelDivinity.maximum} per rest\n`;
@@ -2731,7 +2793,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           spellsText += 'No domain spells available at your current level.';
         } else {
           for (const [level, spells] of Object.entries(domainSpells)) {
-            spellsText += `Level ${level}: ${spells.join(', ')}\n`;
+            spellsText += `Level ${level}: ${(spells as string[]).join(', ')}\n`;
           }
         }
 
@@ -3078,6 +3140,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // Rest and Recovery tool handlers
       case 'short_rest': {
         if (!currentCharacter) {
           return {
@@ -3090,22 +3153,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const restored = restoreFighterFeatures(currentCharacter, 'short');
-        await saveCharacter(currentCharacter);
-
-        let message = `${currentCharacter.name} takes a short rest.\n\n`;
-        if (restored.length > 0) {
-          message += `Restored features: ${restored.join(', ')}\n`;
-        } else {
-          message += 'No features were restored.\n';
+        const { hitDiceToSpend = 0 } = args as any;
+        const restManager = new RestManager(currentCharacter);
+        
+        const canRest = restManager.canTakeShortRest();
+        if (!canRest.canRest) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Cannot take a short rest: ${canRest.reason}`
+              }
+            ],
+            isError: true
+          };
         }
-        message += 'Character saved to character.json';
 
+        const result = restManager.shortRest(hitDiceToSpend);
+        await saveCharacter(currentCharacter);
         return {
           content: [
             {
               type: 'text',
-              text: message
+              text: result.message + (result.errors && result.errors.length > 0 ? `\nErrors: ${result.errors.join(', ')}` : '') + '\nCharacter saved to character.json'
             }
           ]
         };
@@ -3123,58 +3193,244 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        // Restore hit points to maximum
-        currentCharacter.hitPoints.current = currentCharacter.hitPoints.maximum;
-        currentCharacter.hitPoints.temporary = 0;
-
-        // Restore Fighter features
-        const restored = restoreFighterFeatures(currentCharacter, 'long');
+        const restManager = new RestManager(currentCharacter);
         
-        // Restore spell slots for wizards
-        if (spellManager) {
-          spellManager.restoreAllSlots();
+        const canRest = restManager.canTakeLongRest();
+        if (!canRest.canRest) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Cannot take a long rest: ${canRest.reason}`
+              }
+            ],
+            isError: true
+          };
         }
 
+        const result = restManager.longRest();
         await saveCharacter(currentCharacter);
-
-        let message = `${currentCharacter.name} takes a long rest.\n\n`;
-        message += `Hit points fully restored: ${currentCharacter.hitPoints.maximum}/${currentCharacter.hitPoints.maximum}\n`;
-        if (restored.length > 0) {
-          message += `Restored features: ${restored.join(', ')}\n`;
-        }
-        if (spellManager) {
-          message += 'All spell slots restored\n';
-        }
-        message += 'Character saved to character.json';
 
         return {
           content: [
             {
               type: 'text',
-              text: message
+              text: result.message + '\nCharacter saved to character.json'
             }
           ]
         };
       }
 
-      case 'get_martial_archetypes': {
-        let archetypesText = 'Available Martial Archetypes (Fighter Subclasses):\n\n';
+      case 'add_exhaustion': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { levels = 1 } = args as any;
+        const restManager = new RestManager(currentCharacter);
+        const result = restManager.addExhaustion(levels);
+        await saveCharacter(currentCharacter);
+
+        const exhaustionInfo = EXHAUSTION_EFFECTS[result.newLevel];
+        let message = `Added ${levels} exhaustion level${levels > 1 ? 's' : ''}. Current level: ${result.newLevel} (${exhaustionInfo.name})`;
         
-        MARTIAL_ARCHETYPES.forEach(archetype => {
-          archetypesText += `**${archetype.name}:**\n`;
-          archetypesText += `${archetype.description}\n\n`;
-          archetypesText += 'Features:\n';
-          archetype.features.forEach(feature => {
-            archetypesText += `• Level ${feature.level}: **${feature.name}** - ${feature.description}\n`;
+        if (result.effects.length > 0) {
+          message += `\nEffects: ${result.effects.join(', ')}`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message + '\nCharacter saved to character.json'
+            }
+          ]
+        };
+      }
+
+      case 'remove_exhaustion': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { levels = 1 } = args as any;
+        const restManager = new RestManager(currentCharacter);
+        const result = restManager.removeExhaustion(levels);
+        await saveCharacter(currentCharacter);
+
+        const exhaustionInfo = EXHAUSTION_EFFECTS[result.newLevel];
+        let message = `Removed ${levels} exhaustion level${levels > 1 ? 's' : ''}. Current level: ${result.newLevel} (${exhaustionInfo.name})`;
+        
+        if (result.effects.length > 0) {
+          message += `\nRemaining effects: ${result.effects.join(', ')}`;
+        } else {
+          message += `\nNo exhaustion effects remaining.`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message + '\nCharacter saved to character.json'
+            }
+          ]
+        };
+      }
+
+      case 'get_exhaustion_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const restManager = new RestManager(currentCharacter);
+        const exhaustionInfo = restManager.getExhaustionEffects();
+        const effectiveMaxHP = getEffectiveMaxHitPoints(currentCharacter);
+        const effectiveSpeed = getEffectiveSpeed(currentCharacter);
+
+        let statusText = `Exhaustion Status for ${currentCharacter.name}:\n\n`;
+        statusText += `Current Level: ${currentCharacter.exhaustionLevel} (${exhaustionInfo.name})\n`;
+        statusText += `Description: ${exhaustionInfo.description}\n\n`;
+
+        if (exhaustionInfo.effects.length > 0) {
+          statusText += `Current Effects:\n`;
+          exhaustionInfo.effects.forEach(effect => {
+            statusText += `• ${effect}\n`;
           });
-          archetypesText += '\n';
+        } else {
+          statusText += `No exhaustion effects.\n`;
+        }
+
+        statusText += `\nCurrent Stats:\n`;
+        statusText += `• Effective Max HP: ${effectiveMaxHP}/${currentCharacter.hitPoints.maximum}\n`;
+        statusText += `• Effective Speed: ${effectiveSpeed} ft (base: ${currentCharacter.speed} ft)\n`;
+        statusText += `• Ability Check Disadvantage: ${hasAbilityCheckDisadvantage(currentCharacter) ? 'Yes' : 'No'}\n`;
+        statusText += `• Attack/Save Disadvantage: ${hasAttackAndSaveDisadvantage(currentCharacter) ? 'Yes' : 'No'}\n`;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: statusText
+            }
+          ]
+        };
+      }
+
+      case 'get_hit_dice_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const restManager = new RestManager(currentCharacter);
+        const hitDiceInfo = restManager.getAvailableHitDice();
+
+        let statusText = `Hit Dice Status for ${currentCharacter.name}:\n\n`;
+        statusText += `Available: ${hitDiceInfo.current}/${hitDiceInfo.maximum} d${hitDiceInfo.size}\n`;
+        statusText += `Constitution Modifier: ${currentCharacter.abilityScores.constitution.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.constitution.modifier}\n\n`;
+        
+        if (hitDiceInfo.current > 0) {
+          statusText += `Each hit die rolled will heal 1d${hitDiceInfo.size}${currentCharacter.abilityScores.constitution.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.constitution.modifier} hit points (minimum 1).\n`;
+          statusText += `Use short_rest with hitDiceToSpend parameter to spend hit dice during a short rest.`;
+        } else {
+          statusText += `No hit dice available. Take a long rest to recover ${Math.max(1, Math.floor(hitDiceInfo.maximum / 2))} hit dice.`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: statusText
+            }
+          ]
+        };
+      }
+
+      // Entity Management tool handlers
+      case 'list_entities': {
+        const { type } = args as any;
+        const entities = type ? await listEntitiesByType(type) : await listAllEntities();
+        
+        if (entities.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No ${type || 'entities'} found.`
+              }
+            ]
+          };
+        }
+
+        const entityList = entities.map(entity => {
+          if (isCharacter(entity)) {
+            return `${entity.name} (Level ${entity.level} ${entity.race.name} ${entity.class.name}) - ID: ${entity.id}`;
+          } else if (isNPC(entity)) {
+            return `${entity.name} (${entity.role} in ${entity.location}) - ID: ${entity.id}`;
+          } else if (isMonster(entity)) {
+            return `${entity.name} (CR ${entity.challengeRating} ${entity.creatureType}) - ID: ${entity.id}`;
+          }
+          return `${(entity as GameEntity).name} - ID: ${(entity as GameEntity).id}`;
+        }).join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `${type ? type.charAt(0).toUpperCase() + type.slice(1) : 'All'} entities:\n\n${entityList}`
+            }
+          ]
+        };
+      }
+
+      case 'create_npc': {
+        const { name, role, location, level, abilityScores } = args as any;
+        
+        const npc = await createNPCEntity({
+          name,
+          role,
+          location,
+          level,
+          abilityScores
         });
 
         return {
           content: [
             {
               type: 'text',
-              text: archetypesText
+              text: `Created NPC: ${npc.name}\n` +
+                    `Role: ${npc.role}\n` +
+                    `Location: ${npc.location}\n` +
+                    `Level: ${npc.level}\n` +
+                    `AC: ${npc.armorClass}, HP: ${npc.hitPoints.current}/${npc.hitPoints.maximum}\n` +
+                    `ID: ${npc.id}`
             }
           ]
         };
@@ -3347,6 +3603,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'get_martial_archetypes': {
+        let archetypesText = 'Available Martial Archetypes (Fighter Subclasses):\n\n';
+        
+        MARTIAL_ARCHETYPES.forEach(archetype => {
+          archetypesText += `**${archetype.name}:**\n`;
+          archetypesText += `${archetype.description}\n\n`;
+          archetypesText += 'Features:\n';
+          archetype.features.forEach(feature => {
+            archetypesText += `• Level ${feature.level}: **${feature.name}** - ${feature.description}\n`;
+          });
+          archetypesText += '\n';
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: archetypesText
+            }
+          ]
+        };
+      }
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -3362,61 +3641,3 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 });
-
-// Helper function to get hit die for class
-function getHitDieForClass(className: string): number {
-  const hitDieMap: { [key: string]: number } = {
-    'Barbarian': 12,
-    'Bard': 8,
-    'Cleric': 8,
-    'Druid': 8,
-    'Fighter': 10,
-    'Monk': 8,
-    'Paladin': 10,
-    'Ranger': 10,
-    'Rogue': 8,
-    'Sorcerer': 6,
-    'Warlock': 8,
-    'Wizard': 6
-  };
-  
-  return hitDieMap[className] || 8;
-}
-
-// Helper function to get ability for skill
-function getAbilityForSkill(skillName: string): keyof AbilityScores {
-  const skillAbilityMap: { [key: string]: keyof AbilityScores } = {
-    'Athletics': 'strength',
-    'Acrobatics': 'dexterity',
-    'Sleight of Hand': 'dexterity',
-    'Stealth': 'dexterity',
-    'Arcana': 'intelligence',
-    'History': 'intelligence',
-    'Investigation': 'intelligence',
-    'Nature': 'intelligence',
-    'Religion': 'intelligence',
-    'Animal Handling': 'wisdom',
-    'Insight': 'wisdom',
-    'Medicine': 'wisdom',
-    'Perception': 'wisdom',
-    'Survival': 'wisdom',
-    'Deception': 'charisma',
-    'Intimidation': 'charisma',
-    'Performance': 'charisma',
-    'Persuasion': 'charisma'
-  };
-  
-  return skillAbilityMap[skillName] || 'intelligence';
-}
-
-// Start the server
-async function main() {
-  // Initialize character from file
-  await initializeCharacter();
-  
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('D&D Character MCP server running on stdio');
-}
-
-main().catch(console.error);
