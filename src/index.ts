@@ -88,6 +88,35 @@ import {
 import { GameEntity, CharacterEntity, NPCEntity, MonsterEntity, isCharacter, isNPC, isMonster } from './types/entity.js';
 import { ClericCharacter } from './utils/cleric-character.js';
 import { DIVINE_DOMAINS } from './data/cleric.js';
+import { 
+  createParty, 
+  getParty, 
+  getPartyWithMembers, 
+  addMemberToParty, 
+  removeMemberFromParty, 
+  updateParty, 
+  deleteParty, 
+  listParties, 
+  setActiveParty, 
+  getActiveParty, 
+  getActivePartyWithMembers, 
+  clearActiveParty 
+} from './utils/party.js';
+import { 
+  calculatePartyEncounterThresholds, 
+  createMonsterEncounter, 
+  generateRandomEncounter, 
+  getEncounterAdvice 
+} from './utils/encounters.js';
+import { 
+  CreatePartyInputSchema, 
+  UpdatePartyInputSchema, 
+  AddPartyMemberInputSchema, 
+  RemovePartyMemberInputSchema, 
+  SetActivePartyInputSchema, 
+  GenerateEncounterInputSchema, 
+  CalculateEncounterInputSchema 
+} from './utils/validation.js';
 
 // Character storage - will be loaded from file on startup
 let currentCharacter: DNDCharacter | null = null;
@@ -1046,6 +1075,211 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['query'],
+        },
+      },
+      // Party Management tools
+      {
+        name: 'create_party',
+        description: 'Create a new party',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Party name',
+            },
+            description: {
+              type: 'string',
+              description: 'Optional party description',
+            },
+          },
+          required: ['name'],
+        },
+      },
+      {
+        name: 'get_party',
+        description: 'Get party information with members',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID (optional, uses active party if not provided)',
+            },
+          },
+        },
+      },
+      {
+        name: 'list_parties',
+        description: 'List all parties',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'add_party_member',
+        description: 'Add a character or entity to a party',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID',
+            },
+            entityId: {
+              type: 'string',
+              description: 'Entity ID to add to the party',
+            },
+          },
+          required: ['partyId', 'entityId'],
+        },
+      },
+      {
+        name: 'remove_party_member',
+        description: 'Remove a member from a party',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID',
+            },
+            entityId: {
+              type: 'string',
+              description: 'Entity ID to remove from the party',
+            },
+          },
+          required: ['partyId', 'entityId'],
+        },
+      },
+      {
+        name: 'update_party',
+        description: 'Update party information',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID',
+            },
+            name: {
+              type: 'string',
+              description: 'New party name',
+            },
+            description: {
+              type: 'string',
+              description: 'New party description',
+            },
+          },
+          required: ['partyId'],
+        },
+      },
+      {
+        name: 'delete_party',
+        description: 'Delete a party',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID to delete',
+            },
+          },
+          required: ['partyId'],
+        },
+      },
+      {
+        name: 'set_active_party',
+        description: 'Set the active party for encounter calculations',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID to set as active',
+            },
+          },
+          required: ['partyId'],
+        },
+      },
+      {
+        name: 'get_active_party',
+        description: 'Get the currently active party',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      // Encounter Calculation tools
+      {
+        name: 'calculate_encounter_thresholds',
+        description: 'Calculate encounter difficulty thresholds for a party',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID (optional, uses active party if not provided)',
+            },
+          },
+        },
+      },
+      {
+        name: 'calculate_encounter_difficulty',
+        description: 'Calculate the difficulty of a specific encounter',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID (optional, uses active party if not provided)',
+            },
+            monsters: {
+              type: 'array',
+              description: 'Array of monsters in the encounter',
+              items: {
+                type: 'object',
+                properties: {
+                  monsterId: {
+                    type: 'string',
+                    description: 'Monster entity ID',
+                  },
+                  count: {
+                    type: 'number',
+                    description: 'Number of this monster type',
+                    default: 1,
+                  },
+                },
+                required: ['monsterId'],
+              },
+            },
+          },
+          required: ['monsters'],
+        },
+      },
+      {
+        name: 'generate_random_encounter',
+        description: 'Generate random encounter suggestions for a party',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            partyId: {
+              type: 'string',
+              description: 'Party ID (optional, uses active party if not provided)',
+            },
+            difficulty: {
+              type: 'string',
+              enum: ['easy', 'medium', 'hard'],
+              description: 'Target encounter difficulty',
+              default: 'medium',
+            },
+            maxMonsters: {
+              type: 'number',
+              description: 'Maximum number of monsters in a single encounter',
+              default: 6,
+            },
+          },
         },
       },
     ],
@@ -3653,6 +3887,593 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
           ]
         };
+      }
+
+      // Party Management tools
+      case 'create_party': {
+        const inputValidation = CreatePartyInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input for creating party: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { name, description } = inputValidation.data;
+        const party = await createParty(name, description);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Created party "${party.name}" with ID: ${party.id}${description ? `\nDescription: ${description}` : ''}`
+            }
+          ]
+        };
+      }
+
+      case 'get_party': {
+        const { partyId } = args as { partyId?: string };
+        
+        let party;
+        if (partyId) {
+          party = await getPartyWithMembers(partyId);
+        } else {
+          party = await getActivePartyWithMembers();
+        }
+
+        if (!party) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: partyId ? `Party with ID ${partyId} not found` : 'No active party set'
+              }
+            ]
+          };
+        }
+
+        const membersList = party.members.length > 0 
+          ? party.members.map(member => {
+              const entity = member.entity;
+              if (isCharacter(entity)) {
+                return `• ${entity.name} (Level ${entity.level} ${entity.race.name} ${entity.class.name})`;
+              } else if (isNPC(entity)) {
+                return `• ${entity.name} (${entity.role})`;
+              } else if (isMonster(entity)) {
+                return `• ${entity.name} (CR ${entity.challengeRating})`;
+              } else {
+                return `• ${(entity as any).name}`;
+              }
+            }).join('\n')
+          : 'No members';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `**${party.name}** (ID: ${party.id})\n` +
+                    `${party.description ? `Description: ${party.description}\n` : ''}` +
+                    `Members: ${party.members.length}\n` +
+                    `Average Level: ${party.averageLevel}\n` +
+                    `Total Levels: ${party.totalLevel}\n\n` +
+                    `**Members:**\n${membersList}`
+            }
+          ]
+        };
+      }
+
+      case 'list_parties': {
+        const parties = await listParties();
+
+        if (parties.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No parties created yet'
+              }
+            ]
+          };
+        }
+
+        const partiesText = parties.map(party => 
+          `• **${party.name}** (ID: ${party.id}) - ${party.memberIds.length} members`
+        ).join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `**Available Parties:**\n${partiesText}`
+            }
+          ]
+        };
+      }
+
+      case 'add_party_member': {
+        const inputValidation = AddPartyMemberInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { partyId, entityId } = inputValidation.data;
+        
+        try {
+          await addMemberToParty(partyId, entityId);
+          const entity = await getEntity(entityId);
+          const party = await getParty(partyId);
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Added ${entity?.name} to party "${party?.name}"`
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'remove_party_member': {
+        const inputValidation = RemovePartyMemberInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { partyId, entityId } = inputValidation.data;
+        
+        try {
+          const entity = await getEntity(entityId);
+          const party = await getParty(partyId);
+          await removeMemberFromParty(partyId, entityId);
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Removed ${entity?.name} from party "${party?.name}"`
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'update_party': {
+        const inputValidation = UpdatePartyInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { id, name, description } = inputValidation.data;
+        
+        try {
+          const updatedParty = await updateParty(id, { name, description });
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Updated party "${updatedParty.name}"`
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'delete_party': {
+        const { partyId } = args as { partyId: string };
+        
+        try {
+          const party = await getParty(partyId);
+          if (!party) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Party with ID ${partyId} not found`
+                }
+              ]
+            };
+          }
+          
+          await deleteParty(partyId);
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Deleted party "${party.name}"`
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'set_active_party': {
+        const inputValidation = SetActivePartyInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { partyId } = inputValidation.data;
+        
+        try {
+          await setActiveParty(partyId);
+          const party = await getParty(partyId);
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Set "${party?.name}" as the active party`
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'get_active_party': {
+        const party = await getActivePartyWithMembers();
+
+        if (!party) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No active party set'
+              }
+            ]
+          };
+        }
+
+        const membersList = party.members.length > 0 
+          ? party.members.map(member => {
+              const entity = member.entity;
+              if (isCharacter(entity)) {
+                return `• ${entity.name} (Level ${entity.level} ${entity.race.name} ${entity.class.name})`;
+              } else if (isNPC(entity)) {
+                return `• ${entity.name} (${entity.role})`;
+              } else if (isMonster(entity)) {
+                return `• ${entity.name} (CR ${entity.challengeRating})`;
+              } else {
+                return `• ${(entity as any).name}`;
+              }
+            }).join('\n')
+          : 'No members';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `**Active Party: ${party.name}** (ID: ${party.id})\n` +
+                    `${party.description ? `Description: ${party.description}\n` : ''}` +
+                    `Members: ${party.members.length}\n` +
+                    `Average Level: ${party.averageLevel}\n` +
+                    `Total Levels: ${party.totalLevel}\n\n` +
+                    `**Members:**\n${membersList}`
+            }
+          ]
+        };
+      }
+
+      // Encounter Calculation tools
+      case 'calculate_encounter_thresholds': {
+        const { partyId } = args as { partyId?: string };
+        
+        let party;
+        if (partyId) {
+          party = await getPartyWithMembers(partyId);
+        } else {
+          party = await getActivePartyWithMembers();
+        }
+
+        if (!party) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: partyId ? `Party with ID ${partyId} not found` : 'No active party set'
+              }
+            ]
+          };
+        }
+
+        try {
+          const calculation = calculatePartyEncounterThresholds(party);
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `**Encounter Thresholds for "${party.name}"**\n` +
+                      `Party Size: ${calculation.partySize} characters\n` +
+                      `Average Level: ${calculation.averageLevel}\n` +
+                      `Total Level: ${calculation.totalLevel}\n\n` +
+                      `**Difficulty Thresholds:**\n` +
+                      `• Easy: ${calculation.thresholds.easy} XP\n` +
+                      `• Medium: ${calculation.thresholds.medium} XP\n` +
+                      `• Hard: ${calculation.thresholds.hard} XP\n` +
+                      `• Deadly: ${calculation.thresholds.deadly} XP\n\n` +
+                      `**Party Adjustment:** ${calculation.adjustedXP.description} (×${calculation.adjustedXP.multiplier})`
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'calculate_encounter_difficulty': {
+        const inputValidation = CalculateEncounterInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { partyId, monsters } = inputValidation.data;
+        
+        let party;
+        if (partyId) {
+          party = await getPartyWithMembers(partyId);
+        } else {
+          party = await getActivePartyWithMembers();
+        }
+
+        if (!party) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: partyId ? `Party with ID ${partyId} not found` : 'No active party set'
+              }
+            ]
+          };
+        }
+
+        try {
+          const calculation = calculatePartyEncounterThresholds(party);
+          
+          // Get monster entities and create encounter
+          const monsterEntities = [];
+          for (const { monsterId, count } of monsters) {
+            const monster = await getEntity(monsterId) as MonsterEntity;
+            if (!monster || !isMonster(monster)) {
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: `Monster with ID ${monsterId} not found or is not a monster`
+                  }
+                ],
+                isError: true
+              };
+            }
+            monsterEntities.push({ monster, count });
+          }
+
+          const encounter = createMonsterEncounter(
+            monsterEntities,
+            calculation.thresholds,
+            calculation.partySize
+          );
+
+          const advice = getEncounterAdvice(encounter, party.averageLevel);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `**Encounter Analysis for "${party.name}"**\n\n` +
+                      `**Monsters:**\n` +
+                      encounter.monsters.map(m => `• ${m.count}× ${m.name} (CR ${m.challengeRating}, ${m.xp} XP each)`).join('\n') +
+                      `\n\n**Difficulty:** ${encounter.difficulty.toUpperCase()}\n` +
+                      `Base XP: ${encounter.totalXP}\n` +
+                      `Adjusted XP: ${encounter.adjustedXP}\n` +
+                      `Suitable: ${encounter.suitable ? '✅ Yes' : '❌ No'}\n\n` +
+                      `**Advice:**\n` +
+                      advice.map(tip => `• ${tip}`).join('\n')
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'generate_random_encounter': {
+        const inputValidation = GenerateEncounterInputSchema.safeParse(args);
+        
+        if (!inputValidation.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Invalid input: ${inputValidation.error.message}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const { partyId, difficulty, maxMonsters } = inputValidation.data;
+        
+        let party;
+        if (partyId) {
+          party = await getPartyWithMembers(partyId);
+        } else {
+          party = await getActivePartyWithMembers();
+        }
+
+        if (!party) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: partyId ? `Party with ID ${partyId} not found` : 'No active party set'
+              }
+            ]
+          };
+        }
+
+        try {
+          const encounters = await generateRandomEncounter(party, difficulty, maxMonsters);
+          
+          if (encounters.length === 0) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `No suitable ${difficulty} encounters found for this party. Try creating some monsters first or adjusting the difficulty.`
+                }
+              ]
+            };
+          }
+
+          const encounterText = encounters.slice(0, 5).map((encounter, index) => {
+            const monstersText = encounter.monsters.map(m => 
+              `${m.count}× ${m.name} (CR ${m.challengeRating})`
+            ).join(', ');
+            
+            return `**Option ${index + 1}:** ${monstersText}\n` +
+                   `  Difficulty: ${encounter.difficulty}, XP: ${encounter.adjustedXP}`;
+          }).join('\n\n');
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `**${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} Encounter Suggestions for "${party.name}"**\n\n${encounterText}`
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       default:

@@ -37,6 +37,11 @@ export async function loadEntityCollection(): Promise<EntityCollection> {
       throw new Error('Invalid entity collection data in file');
     }
     
+    // Initialize parties array if it doesn't exist (for backward compatibility)
+    if (!rawCollection.parties) {
+      rawCollection.parties = [];
+    }
+    
     return rawCollection as EntityCollection;
   } catch (error) {
     if ((error as any)?.code === 'ENOENT') {
@@ -92,6 +97,7 @@ async function migrateFromLegacyCharacterFile(): Promise<EntityCollection> {
       characters: [characterEntity],
       npcs: [],
       monsters: [],
+      parties: [],
       activeEntityId: character.id
     };
     
@@ -107,6 +113,7 @@ async function migrateFromLegacyCharacterFile(): Promise<EntityCollection> {
         characters: [],
         npcs: [],
         monsters: [],
+        parties: [],
         activeEntityId: undefined
       };
     }

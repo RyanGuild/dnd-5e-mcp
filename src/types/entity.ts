@@ -1,4 +1,5 @@
 import { DNDCharacter, AbilityScores } from './character.js';
+import { Party } from './party.js';
 
 export type EntityType = 'character' | 'npc' | 'monster';
 
@@ -153,7 +154,9 @@ export interface EntityCollection {
   characters: CharacterEntity[];
   npcs: NPCEntity[];
   monsters: MonsterEntity[];
+  parties: Party[];
   activeEntityId?: string;
+  activePartyId?: string;
 }
 
 export function isCharacter(entity: GameEntity): entity is CharacterEntity {

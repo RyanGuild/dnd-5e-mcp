@@ -533,3 +533,43 @@ export function formatValidationResult(result: ValidationResult): string {
 
   return output;
 }
+
+// Party validation schemas
+export const CreatePartyInputSchema = z.object({
+  name: z.string().min(1, "Party name is required").max(100, "Party name too long"),
+  description: z.string().max(500, "Description too long").optional()
+});
+
+export const UpdatePartyInputSchema = z.object({
+  id: z.string().min(1, "Party ID is required"),
+  name: z.string().min(1, "Party name is required").max(100, "Party name too long").optional(),
+  description: z.string().max(500, "Description too long").optional()
+});
+
+export const AddPartyMemberInputSchema = z.object({
+  partyId: z.string().min(1, "Party ID is required"),
+  entityId: z.string().min(1, "Entity ID is required")
+});
+
+export const RemovePartyMemberInputSchema = z.object({
+  partyId: z.string().min(1, "Party ID is required"),
+  entityId: z.string().min(1, "Entity ID is required")
+});
+
+export const SetActivePartyInputSchema = z.object({
+  partyId: z.string().min(1, "Party ID is required")
+});
+
+export const GenerateEncounterInputSchema = z.object({
+  partyId: z.string().min(1, "Party ID is required").optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
+  maxMonsters: z.number().min(1).max(20).default(6)
+});
+
+export const CalculateEncounterInputSchema = z.object({
+  partyId: z.string().min(1, "Party ID is required").optional(),
+  monsters: z.array(z.object({
+    monsterId: z.string().min(1, "Monster ID is required"),
+    count: z.number().min(1, "Count must be at least 1").max(50, "Count too high")
+  })).min(1, "At least one monster is required")
+});

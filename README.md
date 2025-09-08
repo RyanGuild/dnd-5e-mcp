@@ -16,6 +16,8 @@ A Model Context Protocol (MCP) server for managing D&D 5e characters, including 
 - **Exhaustion Tracking**: Full exhaustion level system with effects and recovery
 - **Class Features**: Class-specific recovery during rests (Warlock spell slots, Fighter abilities, etc.)
 - **Hit Die Rolling**: Roll hit dice for healing during short rests
+- **Party Management**: Create and manage adventuring parties with multiple characters
+- **Encounter Calculator**: Calculate encounter difficulty and generate balanced encounters based on party composition
 
 ## Installation
 
@@ -190,6 +192,62 @@ npm run dev
   - Shows Champion, Battle Master, and Eldritch Knight with their features
   - Example: View subclass options when creating a Fighter
 
+#### Party Management
+
+- **create_party**: Create a new party
+  - Parameters: `name`, `description` (optional)
+  - Example: Create a party called "The Fellowship" for your adventuring group
+
+- **get_party**: Get party information with members
+  - Parameters: `partyId` (optional, uses active party if not provided)
+  - Shows party details, members, average level, and total levels
+  - Example: View the current active party and its members
+
+- **list_parties**: List all parties
+  - Shows all created parties with member counts
+  - Example: See all available parties to choose from
+
+- **add_party_member**: Add a character or entity to a party
+  - Parameters: `partyId`, `entityId`
+  - Example: Add your character to the party
+
+- **remove_party_member**: Remove a member from a party
+  - Parameters: `partyId`, `entityId`
+  - Example: Remove a character who left the party
+
+- **update_party**: Update party information
+  - Parameters: `partyId`, `name` (optional), `description` (optional)
+  - Example: Change party name or description
+
+- **delete_party**: Delete a party
+  - Parameters: `partyId`
+  - Example: Remove a party that's no longer needed
+
+- **set_active_party**: Set the active party for encounter calculations
+  - Parameters: `partyId`
+  - Example: Set your main adventuring party as active
+
+- **get_active_party**: Get the currently active party
+  - Shows the active party details and members
+  - Example: Check which party is currently active
+
+#### Encounter Calculation
+
+- **calculate_encounter_thresholds**: Calculate encounter difficulty thresholds for a party
+  - Parameters: `partyId` (optional, uses active party if not provided)
+  - Shows Easy, Medium, Hard, and Deadly XP thresholds based on party composition
+  - Example: Get encounter budgets for your party
+
+- **calculate_encounter_difficulty**: Calculate the difficulty of a specific encounter
+  - Parameters: `partyId` (optional), `monsters` (array of monster IDs and counts)
+  - Analyzes encounter difficulty and provides tactical advice
+  - Example: Check if 2 orcs and 1 orc chief is appropriate for your party
+
+- **generate_random_encounter**: Generate random encounter suggestions for a party
+  - Parameters: `partyId` (optional), `difficulty` (easy/medium/hard), `maxMonsters` (optional)
+  - Suggests balanced encounters based on available monsters
+  - Example: Get medium difficulty encounter options for your party
+
 ## Character Data Structure
 
 The server maintains a complete D&D 5e character with:
@@ -332,6 +390,37 @@ The system automatically calculates effective stats based on exhaustion level an
 {}
 ```
 
+10. Create a party:
+```json
+{
+  "name": "The Fellowship",
+  "description": "A brave group of adventurers"
+}
+```
+
+11. Add characters to the party:
+```json
+{
+  "partyId": "party-123",
+  "entityId": "character-456"
+}
+```
+
+12. Calculate encounter thresholds:
+```json
+{
+  "partyId": "party-123"
+}
+```
+
+13. Generate encounter suggestions:
+```json
+{
+  "difficulty": "medium",
+  "maxMonsters": 4
+}
+```
+
 ## Development
 
 The project is built with TypeScript and uses the Model Context Protocol SDK. The server runs on stdio transport and can be integrated with MCP-compatible clients.
@@ -340,7 +429,11 @@ The project is built with TypeScript and uses the Model Context Protocol SDK. Th
 
 - `src/index.ts` - Main MCP server implementation
 - `src/types/character.ts` - TypeScript interfaces for D&D character data
+- `src/types/party.ts` - TypeScript interfaces for party and encounter data
+- `src/types/entity.ts` - TypeScript interfaces for game entities (characters, NPCs, monsters)
 - `src/utils/character.ts` - Character creation and calculation utilities
+- `src/utils/party.ts` - Party management utilities
+- `src/utils/encounters.ts` - Encounter calculation and generation utilities
 - `src/utils/dice.ts` - Dice rolling and game mechanics utilities
 - `src/utils/rest.ts` - Resting system and exhaustion management
 - `src/utils/inventory.ts` - Inventory and equipment management
