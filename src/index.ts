@@ -50,6 +50,7 @@ import {
   rollHitDie
 } from './utils/dice.js';
 import { SpellManager, WIZARD_SPELLS, WIZARD_SPELL_SLOTS } from './utils/spells.js';
+import { RestManager, getEffectiveMaxHitPoints, getEffectiveSpeed, hasAbilityCheckDisadvantage, hasAttackAndSaveDisadvantage, EXHAUSTION_EFFECTS } from './utils/rest.js';
 import { 
   createCharacterEntity, 
   createNPCEntity, 
@@ -689,6 +690,72 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      {
+        name: 'short_rest',
+        description: 'Take a short rest (1 hour) to spend hit dice and recover class features',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            hitDiceToSpend: {
+              type: 'number',
+              description: 'Number of hit dice to spend for healing (default: 0)',
+              default: 0,
+            },
+          },
+        },
+      },
+      {
+        name: 'long_rest',
+        description: 'Take a long rest (8 hours) to fully recover hit points, spell slots, and reduce exhaustion',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'add_exhaustion',
+        description: 'Add exhaustion levels to the character',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            levels: {
+              type: 'number',
+              description: 'Number of exhaustion levels to add (default: 1)',
+              default: 1,
+            },
+          },
+        },
+      },
+      {
+        name: 'remove_exhaustion',
+        description: 'Remove exhaustion levels from the character',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            levels: {
+              type: 'number',
+              description: 'Number of exhaustion levels to remove (default: 1)',
+              default: 1,
+            },
+          },
+        },
+      },
+      {
+        name: 'get_exhaustion_status',
+        description: 'Get current exhaustion level and effects',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_hit_dice_status',
+        description: 'Get current hit dice available for short rests',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
   };
 });
@@ -760,15 +827,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
+        const effectiveMaxHP = getEffectiveMaxHitPoints(currentCharacter);
+        const effectiveSpeed = getEffectiveSpeed(currentCharacter);
+        const exhaustionInfo = EXHAUSTION_EFFECTS[currentCharacter.exhaustionLevel];
+
         return {
           content: [
             {
               type: 'text',
               text: `Character: ${currentCharacter.name}\n` +
                     `Level ${currentCharacter.level} ${currentCharacter.race.name} ${currentCharacter.class.name}\n` +
-                    `AC: ${currentCharacter.armorClass}, HP: ${currentCharacter.hitPoints.current}/${currentCharacter.hitPoints.maximum}${currentCharacter.hitPoints.temporary > 0 ? ` + ${currentCharacter.hitPoints.temporary} temp` : ''}\n` +
-                    `Speed: ${currentCharacter.speed} ft, Initiative: ${currentCharacter.initiative >= 0 ? '+' : ''}${currentCharacter.initiative}\n` +
-                    `Proficiency Bonus: +${currentCharacter.proficiencyBonus}\n\n` +
+                    `AC: ${currentCharacter.armorClass}, HP: ${currentCharacter.hitPoints.current}/${effectiveMaxHP}${effectiveMaxHP !== currentCharacter.hitPoints.maximum ? ` (${currentCharacter.hitPoints.maximum} max)` : ''}${currentCharacter.hitPoints.temporary > 0 ? ` + ${currentCharacter.hitPoints.temporary} temp` : ''}\n` +
+                    `Hit Dice: ${currentCharacter.hitDice.current}/${currentCharacter.hitDice.maximum} d${currentCharacter.hitDice.size}\n` +
+                    `Speed: ${effectiveSpeed} ft${effectiveSpeed !== currentCharacter.speed ? ` (${currentCharacter.speed} base)` : ''}, Initiative: ${currentCharacter.initiative >= 0 ? '+' : ''}${currentCharacter.initiative}\n` +
+                    `Proficiency Bonus: +${currentCharacter.proficiencyBonus}\n` +
+                    `Exhaustion: Level ${currentCharacter.exhaustionLevel}${currentCharacter.exhaustionLevel > 0 ? ` (${exhaustionInfo.name})` : ''}\n\n` +
                     `Ability Scores:\n` +
                     `  STR: ${currentCharacter.abilityScores.strength.value} (${currentCharacter.abilityScores.strength.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.strength.modifier})\n` +
                     `  DEX: ${currentCharacter.abilityScores.dexterity.value} (${currentCharacter.abilityScores.dexterity.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.dexterity.modifier})\n` +
@@ -783,7 +856,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     `Skills:\n` +
                     currentCharacter.skills.filter(s => s.proficient).map(s => 
                       `  ${s.name}: ${s.modifier >= 0 ? '+' : ''}${s.modifier} (proficient)`
-                    ).join('\n')
+                    ).join('\n') +
+                    (currentCharacter.exhaustionLevel > 0 ? `\n\nExhaustion Effects: ${exhaustionInfo.effects.join(', ')}` : '')
             }
           ]
         };
@@ -2148,6 +2222,239 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     `Spellcasting Ability: Intelligence (+${modifier})\n` +
                     `Spell Save DC: ${saveDC}\n` +
                     `Spell Attack Bonus: +${attackBonus}`
+            }
+          ]
+        };
+      }
+
+      case 'short_rest': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { hitDiceToSpend = 0 } = args as any;
+        const restManager = new RestManager(currentCharacter);
+        
+        const canRest = restManager.canTakeShortRest();
+        if (!canRest.canRest) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Cannot take a short rest: ${canRest.reason}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const result = restManager.shortRest(hitDiceToSpend);
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + (result.errors && result.errors.length > 0 ? `\nErrors: ${result.errors.join(', ')}` : '') + '\nCharacter saved to character.json'
+            }
+          ]
+        };
+      }
+
+      case 'long_rest': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const restManager = new RestManager(currentCharacter);
+        
+        const canRest = restManager.canTakeLongRest();
+        if (!canRest.canRest) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Cannot take a long rest: ${canRest.reason}`
+              }
+            ],
+            isError: true
+          };
+        }
+
+        const result = restManager.longRest();
+        await saveCharacter(currentCharacter);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message + '\nCharacter saved to character.json'
+            }
+          ]
+        };
+      }
+
+      case 'add_exhaustion': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { levels = 1 } = args as any;
+        const restManager = new RestManager(currentCharacter);
+        const result = restManager.addExhaustion(levels);
+        await saveCharacter(currentCharacter);
+
+        const exhaustionInfo = EXHAUSTION_EFFECTS[result.newLevel];
+        let message = `Added ${levels} exhaustion level${levels > 1 ? 's' : ''}. Current level: ${result.newLevel} (${exhaustionInfo.name})`;
+        
+        if (result.effects.length > 0) {
+          message += `\nEffects: ${result.effects.join(', ')}`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message + '\nCharacter saved to character.json'
+            }
+          ]
+        };
+      }
+
+      case 'remove_exhaustion': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { levels = 1 } = args as any;
+        const restManager = new RestManager(currentCharacter);
+        const result = restManager.removeExhaustion(levels);
+        await saveCharacter(currentCharacter);
+
+        const exhaustionInfo = EXHAUSTION_EFFECTS[result.newLevel];
+        let message = `Removed ${levels} exhaustion level${levels > 1 ? 's' : ''}. Current level: ${result.newLevel} (${exhaustionInfo.name})`;
+        
+        if (result.effects.length > 0) {
+          message += `\nRemaining effects: ${result.effects.join(', ')}`;
+        } else {
+          message += `\nNo exhaustion effects remaining.`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: message + '\nCharacter saved to character.json'
+            }
+          ]
+        };
+      }
+
+      case 'get_exhaustion_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const restManager = new RestManager(currentCharacter);
+        const exhaustionInfo = restManager.getExhaustionEffects();
+        const effectiveMaxHP = getEffectiveMaxHitPoints(currentCharacter);
+        const effectiveSpeed = getEffectiveSpeed(currentCharacter);
+
+        let statusText = `Exhaustion Status for ${currentCharacter.name}:\n\n`;
+        statusText += `Current Level: ${currentCharacter.exhaustionLevel} (${exhaustionInfo.name})\n`;
+        statusText += `Description: ${exhaustionInfo.description}\n\n`;
+
+        if (exhaustionInfo.effects.length > 0) {
+          statusText += `Current Effects:\n`;
+          exhaustionInfo.effects.forEach(effect => {
+            statusText += `• ${effect}\n`;
+          });
+        } else {
+          statusText += `No exhaustion effects.\n`;
+        }
+
+        statusText += `\nCurrent Stats:\n`;
+        statusText += `• Effective Max HP: ${effectiveMaxHP}/${currentCharacter.hitPoints.maximum}\n`;
+        statusText += `• Effective Speed: ${effectiveSpeed} ft (base: ${currentCharacter.speed} ft)\n`;
+        statusText += `• Ability Check Disadvantage: ${hasAbilityCheckDisadvantage(currentCharacter) ? 'Yes' : 'No'}\n`;
+        statusText += `• Attack/Save Disadvantage: ${hasAttackAndSaveDisadvantage(currentCharacter) ? 'Yes' : 'No'}\n`;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: statusText
+            }
+          ]
+        };
+      }
+
+      case 'get_hit_dice_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const restManager = new RestManager(currentCharacter);
+        const hitDiceInfo = restManager.getAvailableHitDice();
+
+        let statusText = `Hit Dice Status for ${currentCharacter.name}:\n\n`;
+        statusText += `Available: ${hitDiceInfo.current}/${hitDiceInfo.maximum} d${hitDiceInfo.size}\n`;
+        statusText += `Constitution Modifier: ${currentCharacter.abilityScores.constitution.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.constitution.modifier}\n\n`;
+        
+        if (hitDiceInfo.current > 0) {
+          statusText += `Each hit die rolled will heal 1d${hitDiceInfo.size}${currentCharacter.abilityScores.constitution.modifier >= 0 ? '+' : ''}${currentCharacter.abilityScores.constitution.modifier} hit points (minimum 1).\n`;
+          statusText += `Use short_rest with hitDiceToSpend parameter to spend hit dice during a short rest.`;
+        } else {
+          statusText += `No hit dice available. Take a long rest to recover ${Math.max(1, Math.floor(hitDiceInfo.maximum / 2))} hit dice.`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: statusText
             }
           ]
         };

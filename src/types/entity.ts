@@ -15,7 +15,13 @@ export interface BaseEntity {
   };
   armorClass: number;
   initiative: number;
-  speed: number;
+  speed: number | {
+    walk: number;
+    fly?: number;
+    swim?: number;
+    climb?: number;
+    burrow?: number;
+  };
   notes: string;
   created: Date;
   modified: Date;
@@ -54,6 +60,11 @@ export interface CharacterEntity extends BaseEntity {
     proficient: boolean;
     modifier: number;
   }>;
+  hitDice: {
+    current: number;
+    maximum: number;
+    size: number;
+  };
   proficiencyBonus: number;
   equipment: string[];
   spells: string[];
@@ -63,6 +74,8 @@ export interface CharacterEntity extends BaseEntity {
   experiencePoints: number;
   inventory: any; // CharacterInventory type
   equipmentProficiencies: string[];
+  exhaustionLevel: number;
+  speed: number; // Override BaseEntity speed to be just number for characters
 }
 
 export interface NPCEntity extends BaseEntity {
@@ -113,7 +126,6 @@ export interface MonsterEntity extends BaseEntity {
   conditionImmunities: string[];
   senses: string[];
   languages: string[];
-  challengeRating: number;
   xp: number;
   traits: Array<{
     name: string;

@@ -1,4 +1,4 @@
-import { DNDCharacter, AbilityScores, Skill, SavingThrow } from '../types/character.js';
+import { DNDCharacter, AbilityScores, Skill, SavingThrow, HitDice } from '../types/character.js';
 import { createEmptyInventory, calculateMaxWeight } from './inventory.js';
 
 export function calculateAbilityModifier(score: number): number {
@@ -198,6 +198,12 @@ export function createCharacter(data: Partial<DNDCharacter>): DNDCharacter {
     temporary: 0
   };
 
+  const hitDice = data.hitDice || {
+    current: level,
+    maximum: level,
+    size: data.class?.hitDie || 10
+  };
+
   const armorClass = data.armorClass || calculateArmorClass(abilityScores.dexterity.modifier);
   const inventory = data.inventory || createEmptyInventory();
   inventory.maxWeight = calculateMaxWeight(abilityScores.strength.value);
@@ -214,6 +220,7 @@ export function createCharacter(data: Partial<DNDCharacter>): DNDCharacter {
     skills,
     savingThrows,
     hitPoints,
+    hitDice,
     armorClass,
     initiative: data.initiative || abilityScores.dexterity.modifier,
     speed: data.speed || 30,
@@ -226,7 +233,8 @@ export function createCharacter(data: Partial<DNDCharacter>): DNDCharacter {
     experiencePoints: data.experiencePoints || 0,
     notes: data.notes || '',
     inventory,
-    equipmentProficiencies
+    equipmentProficiencies,
+    exhaustionLevel: data.exhaustionLevel || 0
   };
 }
 
