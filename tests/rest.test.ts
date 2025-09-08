@@ -1,4 +1,4 @@
-import { DNDCharacter } from '../types/character';
+import { DNDCharacter } from '../src/types/character';
 import { 
   RestManager, 
   EXHAUSTION_EFFECTS, 
@@ -6,8 +6,8 @@ import {
   getEffectiveSpeed,
   hasAbilityCheckDisadvantage,
   hasAttackAndSaveDisadvantage 
-} from '../utils/rest';
-import { createCharacter } from '../utils/character';
+} from '../src/utils/rest';
+import { createCharacter } from '../src/utils/character';
 
 // Mock character for testing
 function createTestCharacter(): DNDCharacter {

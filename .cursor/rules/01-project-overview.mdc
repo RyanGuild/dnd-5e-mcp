@@ -3,10 +3,10 @@
 This project contains a Model Context Protocol (MCP) server for managing D&D 5e characters, including character creation, dice rolling, and inventory management.
 
 ## Project Organization
+- tests (unit tests)
 - src
   - data (all hard coded values)
   - handlers (register tools and behaviors)
-  - tests (unit tests)
   - types (zod validators)
   - utils (misc)
 
