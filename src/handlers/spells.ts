@@ -1,6 +1,7 @@
 import { ToolModule, ToolHandler, HandlerContext, HandlerResult, createSuccessResult, createErrorResult } from './types';
 import { SpellManager } from '../utils/spells';
 import { ClericSpellManager } from '../utils/cleric-spells';
+import { saveCharacter } from '../utils/storage';
 import { z } from 'zod';
 
 // Input validation schemas
@@ -29,6 +30,26 @@ const CastSpellInputSchema = z.object({
 
 const RestoreSpellSlotsInputSchema = z.object({
   level: z.number().min(1).max(9).optional(),
+});
+
+const LearnSpellInputSchema = z.object({
+  spellName: z.string(),
+  level: z.number().min(0).max(9),
+});
+
+const LearnSpellsInputSchema = z.object({
+  spells: z.array(z.object({
+    name: z.string(),
+    level: z.number().min(0).max(9),
+  })),
+});
+
+const GetKnownSpellsInputSchema = z.object({
+  level: z.number().min(0).max(9).optional(),
+});
+
+const GetAvailableToLearnInputSchema = z.object({
+  level: z.number().min(0).max(9),
 });
 
 // Spells tool definitions
@@ -144,6 +165,81 @@ const spellsTools = [
       properties: {},
     },
   },
+  {
+    name: 'get_known_spells',
+    description: 'Get spells known by the wizard',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        level: {
+          type: 'number',
+          description: 'Spell level to get (0 for cantrips, omit for all levels)',
+        },
+      },
+    },
+  },
+  {
+    name: 'learn_spell',
+    description: 'Learn a new spell (wizard only)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        spellName: {
+          type: 'string',
+          description: 'Name of the spell to learn',
+        },
+        level: {
+          type: 'number',
+          description: 'Level of the spell (0 for cantrips)',
+        },
+      },
+      required: ['spellName', 'level'],
+    },
+  },
+  {
+    name: 'learn_spells',
+    description: 'Learn multiple spells at once (wizard only)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        spells: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              level: { type: 'number' },
+            },
+            required: ['name', 'level'],
+          },
+          description: 'Array of spells to learn',
+        },
+      },
+      required: ['spells'],
+    },
+  },
+  {
+    name: 'get_available_to_learn',
+    description: 'Get spells available to learn at a specific level (wizard only)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        level: {
+          type: 'number',
+          description: 'Spell level (0 for cantrips)',
+        },
+      },
+      required: ['level'],
+    },
+  },
+  {
+    name: 'get_spell_learning_info',
+    description: 'Get information about spell learning limits and current known spells (wizard only)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
 ];
 
 // Spells handlers
@@ -208,7 +304,7 @@ const prepareSpellsHandler: ToolHandler = {
       if (success) {
         return createSuccessResult(
           `Prepared ${spellNames.length} spell(s) for level ${level}:\n` +
-          spellNames.map(name => `- ${name}`).join('\n')
+          spellNames.map((name: string) => `- ${name}`).join('\n')
         );
       } else {
         return createErrorResult('Failed to prepare spells. Check if the spells are available for your class and level.');
@@ -458,6 +554,224 @@ const getSpellcastingInfoHandler: ToolHandler = {
   }
 };
 
+const getKnownSpellsHandler: ToolHandler = {
+  name: 'get_known_spells',
+  handler: async (args: any, context: HandlerContext) => {
+    if (!context.currentCharacter) {
+      return createErrorResult('No character created yet. Use create_character to create one.');
+    }
+
+    if (!context.spellManager || !(context.spellManager instanceof SpellManager)) {
+      return createErrorResult('Known spells are only available for wizards.');
+    }
+
+    const inputValidation = GetKnownSpellsInputSchema.safeParse(args);
+    if (!inputValidation.success) {
+      return createErrorResult(`Invalid input: ${inputValidation.error.message}`);
+    }
+
+    const { level } = inputValidation.data;
+    const spellManager = context.spellManager as SpellManager;
+    
+    let result = `Known Spells for ${context.currentCharacter.name}:\n\n`;
+    
+    if (level !== undefined) {
+      const spells = spellManager.getKnownSpells(level);
+      if (spells.length === 0) {
+        result += `No spells known for level ${level}`;
+      } else {
+        result += `Level ${level} Spells:\n`;
+        spells.forEach(spellName => {
+          result += `- ${spellName}\n`;
+        });
+      }
+    } else {
+      const allKnown = spellManager.getAllKnownSpells();
+      let hasAnySpells = false;
+      
+      // Check each level
+      for (let i = 0; i <= 9; i++) {
+        const levelKey = i === 0 ? 'cantrips' : `level${i}` as keyof typeof allKnown;
+        const spells = allKnown[levelKey];
+        if (spells && spells.length > 0) {
+          hasAnySpells = true;
+          result += `Level ${i} Spells:\n`;
+          spells.forEach(spellName => {
+            result += `- ${spellName}\n`;
+          });
+          result += `\n`;
+        }
+      }
+      
+      if (!hasAnySpells) {
+        result += `No spells known`;
+      }
+    }
+
+    return createSuccessResult(result);
+  }
+};
+
+const learnSpellHandler: ToolHandler = {
+  name: 'learn_spell',
+  handler: async (args: any, context: HandlerContext) => {
+    if (!context.currentCharacter) {
+      return createErrorResult('No character created yet. Use create_character to create one.');
+    }
+
+    if (!context.spellManager || !(context.spellManager instanceof SpellManager)) {
+      return createErrorResult('Learning spells is only available for wizards.');
+    }
+
+    const inputValidation = LearnSpellInputSchema.safeParse(args);
+    if (!inputValidation.success) {
+      return createErrorResult(`Invalid input: ${inputValidation.error.message}`);
+    }
+
+    const { spellName, level } = inputValidation.data;
+    const spellManager = context.spellManager as SpellManager;
+    
+    try {
+      const success = spellManager.learnSpell(spellName, level);
+      
+      if (success) {
+        // Update the character's known spells and save
+        context.currentCharacter.knownSpells = spellManager.getAllKnownSpells();
+        await saveCharacter(context.currentCharacter);
+        
+        return createSuccessResult(`Successfully learned ${spellName} (Level ${level})!`);
+      } else {
+        return createErrorResult(`Failed to learn ${spellName}. Check if the spell exists, isn't already known, and you haven't exceeded learning limits.`);
+      }
+    } catch (error) {
+      return createErrorResult(`Error learning spell: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+};
+
+const learnSpellsHandler: ToolHandler = {
+  name: 'learn_spells',
+  handler: async (args: any, context: HandlerContext) => {
+    if (!context.currentCharacter) {
+      return createErrorResult('No character created yet. Use create_character to create one.');
+    }
+
+    if (!context.spellManager || !(context.spellManager instanceof SpellManager)) {
+      return createErrorResult('Learning spells is only available for wizards.');
+    }
+
+    const inputValidation = LearnSpellsInputSchema.safeParse(args);
+    if (!inputValidation.success) {
+      return createErrorResult(`Invalid input: ${inputValidation.error.message}`);
+    }
+
+    const { spells } = inputValidation.data;
+    const spellManager = context.spellManager as SpellManager;
+    
+    try {
+      const result = spellManager.learnSpells(spells);
+      
+      // Update the character's known spells and save if any spells were learned
+      if (result.learned.length > 0) {
+        context.currentCharacter.knownSpells = spellManager.getAllKnownSpells();
+        await saveCharacter(context.currentCharacter);
+      }
+      
+      let response = `Learning Results:\n\n`;
+      
+      if (result.learned.length > 0) {
+        response += `Successfully learned ${result.learned.length} spell(s):\n`;
+        result.learned.forEach(spellName => {
+          response += `- ${spellName}\n`;
+        });
+        response += `\n`;
+      }
+      
+      if (result.failed.length > 0) {
+        response += `Failed to learn ${result.failed.length} spell(s):\n`;
+        result.failed.forEach(spellName => {
+          response += `- ${spellName}\n`;
+        });
+      }
+      
+      return createSuccessResult(response);
+    } catch (error) {
+      return createErrorResult(`Error learning spells: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+};
+
+const getAvailableToLearnHandler: ToolHandler = {
+  name: 'get_available_to_learn',
+  handler: async (args: any, context: HandlerContext) => {
+    if (!context.currentCharacter) {
+      return createErrorResult('No character created yet. Use create_character to create one.');
+    }
+
+    if (!context.spellManager || !(context.spellManager instanceof SpellManager)) {
+      return createErrorResult('Spell learning is only available for wizards.');
+    }
+
+    const inputValidation = GetAvailableToLearnInputSchema.safeParse(args);
+    if (!inputValidation.success) {
+      return createErrorResult(`Invalid input: ${inputValidation.error.message}`);
+    }
+
+    const { level } = inputValidation.data;
+    const spellManager = context.spellManager as SpellManager;
+    
+    try {
+      const availableSpells = spellManager.getAvailableToLearn(level);
+      
+      if (availableSpells.length === 0) {
+        return createSuccessResult(`No spells available to learn at level ${level}.`);
+      }
+      
+      let result = `Spells available to learn at level ${level}:\n\n`;
+      availableSpells.forEach(spell => {
+        result += `- ${spell.name}\n`;
+        result += `  ${spell.description}\n\n`;
+      });
+      
+      return createSuccessResult(result);
+    } catch (error) {
+      return createErrorResult(`Error getting available spells: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+};
+
+const getSpellLearningInfoHandler: ToolHandler = {
+  name: 'get_spell_learning_info',
+  handler: async (args: any, context: HandlerContext) => {
+    if (!context.currentCharacter) {
+      return createErrorResult('No character created yet. Use create_character to create one.');
+    }
+
+    if (!context.spellManager || !(context.spellManager instanceof SpellManager)) {
+      return createErrorResult('Spell learning info is only available for wizards.');
+    }
+
+    const spellManager = context.spellManager as SpellManager;
+    const limits = spellManager.getSpellLearningLimits();
+    
+    let result = `Spell Learning Info for ${context.currentCharacter.name}:\n\n`;
+    result += `Cantrips Known: ${limits.cantripsKnown}/${limits.cantripsMaximum}\n`;
+    result += `Total Spells Known: ${limits.totalSpellsKnown}\n\n`;
+    
+    // Show known spells by level
+    const allKnown = spellManager.getAllKnownSpells();
+    for (let level = 0; level <= 9; level++) {
+      const levelKey = level === 0 ? 'cantrips' : `level${level}` as keyof typeof allKnown;
+      const spells = allKnown[levelKey];
+      if (spells && spells.length > 0) {
+        result += `Level ${level}: ${spells.length} spell(s) known\n`;
+      }
+    }
+
+    return createSuccessResult(result);
+  }
+};
+
 // Spells module
 export const spellsModule: ToolModule = {
   tools: spellsTools,
@@ -470,5 +784,10 @@ export const spellsModule: ToolModule = {
     castSpellHandler,
     restoreSpellSlotsHandler,
     getSpellcastingInfoHandler,
+    getKnownSpellsHandler,
+    learnSpellHandler,
+    learnSpellsHandler,
+    getAvailableToLearnHandler,
+    getSpellLearningInfoHandler,
   ],
 };
