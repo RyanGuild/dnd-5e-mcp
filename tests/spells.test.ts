@@ -1,4 +1,5 @@
-import { SpellManager, WIZARD_SPELLS, WIZARD_SPELL_SLOTS } from '../src/utils/spells';
+import { SpellManager, WIZARD_SPELL_SLOTS } from '../src/utils/spells';
+import { WIZARD_SPELLS } from '../src/data/wizard-spells';
 
 describe('Spell Management (Wizard)', () => {
   let spellManager: SpellManager;
