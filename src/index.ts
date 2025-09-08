@@ -88,6 +88,19 @@ import {
 import { GameEntity, CharacterEntity, NPCEntity, MonsterEntity, isCharacter, isNPC, isMonster } from './types/entity.js';
 import { ClericCharacter } from './utils/cleric-character.js';
 import { DIVINE_DOMAINS } from './data/cleric.js';
+import { 
+  applyStatusEffect, 
+  removeStatusEffect, 
+  hasCondition, 
+  getActiveConditions, 
+  getCondition,
+  updateStatusDurations,
+  applyLongRest as applyLongRestStatus,
+  applyShortRest as applyShortRestStatus,
+  getStatusModifiersForRoll,
+  saveEntityStatus
+} from './utils/status.js';
+import { ConditionType } from './types/status.js';
 
 // Character storage - will be loaded from file on startup
 let currentCharacter: DNDCharacter | null = null;
@@ -1048,6 +1061,117 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['query'],
         },
       },
+      {
+        name: 'apply_status',
+        description: 'Apply a status condition to the current character or entity',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            condition: {
+              type: 'string',
+              enum: ['blinded', 'charmed', 'deafened', 'exhaustion', 'frightened', 'grappled', 'incapacitated', 'invisible', 'paralyzed', 'petrified', 'poisoned', 'prone', 'restrained', 'stunned', 'unconscious'],
+              description: 'The condition to apply',
+            },
+            source: {
+              type: 'string',
+              description: 'What caused this condition (e.g., spell name, ability)',
+            },
+            duration: {
+              type: 'object',
+              description: 'Duration of the condition',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['permanent', 'rounds', 'minutes', 'hours', 'until_long_rest', 'until_short_rest', 'concentration', 'custom'],
+                  description: 'Type of duration',
+                },
+                remaining: {
+                  type: 'number',
+                  description: 'Remaining time (for timed effects)',
+                },
+                endCondition: {
+                  type: 'string',
+                  description: 'Custom end condition description',
+                },
+              },
+              required: ['type'],
+            },
+            level: {
+              type: 'number',
+              description: 'Level of the condition (for exhaustion)',
+              minimum: 1,
+              maximum: 6,
+            },
+            saveDC: {
+              type: 'number',
+              description: 'DC for saving throws to end the condition',
+            },
+            saveType: {
+              type: 'string',
+              enum: ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'],
+              description: 'Ability used for saving throws',
+            },
+            canRepeatSave: {
+              type: 'boolean',
+              description: 'Whether the character can make saves to end the condition',
+              default: false,
+            },
+          },
+          required: ['condition'],
+        },
+      },
+      {
+        name: 'remove_status',
+        description: 'Remove a status condition from the current character or entity',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            condition: {
+              type: 'string',
+              description: 'The condition to remove (condition type or effect ID)',
+            },
+          },
+          required: ['condition'],
+        },
+      },
+      {
+        name: 'get_status',
+        description: 'Get all active status conditions on the current character or entity',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'check_status',
+        description: 'Check if the current character has a specific condition',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            condition: {
+              type: 'string',
+              enum: ['blinded', 'charmed', 'deafened', 'exhaustion', 'frightened', 'grappled', 'incapacitated', 'invisible', 'paralyzed', 'petrified', 'poisoned', 'prone', 'restrained', 'stunned', 'unconscious'],
+              description: 'The condition to check for',
+            },
+          },
+          required: ['condition'],
+        },
+      },
+      {
+        name: 'update_status_durations',
+        description: 'Update durations for timed status effects (advance time)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            timeType: {
+              type: 'string',
+              enum: ['round', 'minute', 'hour'],
+              description: 'Type of time that has passed',
+            },
+          },
+          required: ['timeType'],
+        },
+      },
     ],
   };
 });
@@ -1347,14 +1471,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const { ability, proficient } = inputValidation.data;
         const abilityScore = currentCharacter.abilityScores[ability as keyof typeof currentCharacter.abilityScores];
-        const result = rollAbilityCheck(abilityScore.value, currentCharacter.proficiencyBonus, proficient);
+        
+        // Check for status effects that modify the roll
+        const characterEntity = currentCharacter as any;
+        const statusModifiers = getStatusModifiersForRoll(characterEntity, 'ability_check', ability);
+        
+        if (statusModifiers.autoFail) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${currentCharacter.name} ${ability} check - AUTOMATIC FAILURE due to status conditions`
+              }
+            ]
+          };
+        }
+
+        // Apply advantage/disadvantage from status effects
+        const hasAdvantage = statusModifiers.advantage && !statusModifiers.disadvantage;
+        const hasDisadvantage = statusModifiers.disadvantage && !statusModifiers.advantage;
+        
+        const result = hasAdvantage ? 
+          rollWithAdvantage(1, 20, abilityScore.modifier + (proficient ? currentCharacter.proficiencyBonus : 0)) :
+          hasDisadvantage ?
+          rollWithDisadvantage(1, 20, abilityScore.modifier + (proficient ? currentCharacter.proficiencyBonus : 0)) :
+          rollAbilityCheck(abilityScore.value, currentCharacter.proficiencyBonus, proficient);
+
+        let statusText = '';
+        if (hasAdvantage) statusText = ' (with advantage from status)';
+        if (hasDisadvantage) statusText = ' (with disadvantage from status)';
 
         return {
           content: [
             {
               type: 'text',
-              text: `${currentCharacter.name} ${ability} check${proficient ? ' (proficient)' : ''}\n` +
-                    `Roll: ${result.rolls[0]} + ${abilityScore.modifier}${proficient ? ` + ${currentCharacter.proficiencyBonus}` : ''} = ${result.total}${result.natural20 ? ' (Natural 20!)' : ''}${result.natural1 ? ' (Natural 1!)' : ''}`
+              text: `${currentCharacter.name} ${ability} check${proficient ? ' (proficient)' : ''}${statusText}\n` +
+                    `Roll: ${hasAdvantage || hasDisadvantage ? `[${result.rolls.join(', ')}]` : result.rolls[0]} + ${abilityScore.modifier}${proficient ? ` + ${currentCharacter.proficiencyBonus}` : ''} = ${result.total}${result.natural20 ? ' (Natural 20!)' : ''}${result.natural1 ? ' (Natural 1!)' : ''}`
             }
           ]
         };
@@ -1386,14 +1538,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const abilityScore = currentCharacter.abilityScores[ability as keyof typeof currentCharacter.abilityScores];
-        const result = rollSavingThrow(abilityScore.value, currentCharacter.proficiencyBonus, savingThrow.proficient);
+        
+        // Check for status effects that modify the roll
+        const characterEntity = currentCharacter as any;
+        const statusModifiers = getStatusModifiersForRoll(characterEntity, 'saving_throw', ability);
+        
+        if (statusModifiers.autoFail) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${currentCharacter.name} ${ability} saving throw - AUTOMATIC FAILURE due to status conditions`
+              }
+            ]
+          };
+        }
+
+        // Apply advantage/disadvantage from status effects
+        const hasAdvantage = statusModifiers.advantage && !statusModifiers.disadvantage;
+        const hasDisadvantage = statusModifiers.disadvantage && !statusModifiers.advantage;
+        
+        const result = hasAdvantage ? 
+          rollWithAdvantage(1, 20, savingThrow.modifier) :
+          hasDisadvantage ?
+          rollWithDisadvantage(1, 20, savingThrow.modifier) :
+          rollSavingThrow(abilityScore.value, currentCharacter.proficiencyBonus, savingThrow.proficient);
+
+        let statusText = '';
+        if (hasAdvantage) statusText = ' (with advantage from status)';
+        if (hasDisadvantage) statusText = ' (with disadvantage from status)';
 
         return {
           content: [
             {
               type: 'text',
-              text: `${currentCharacter.name} ${ability} saving throw${savingThrow.proficient ? ' (proficient)' : ''}\n` +
-                    `Roll: ${result.rolls[0]} + ${savingThrow.modifier} = ${result.total}${result.natural20 ? ' (Natural 20!)' : ''}${result.natural1 ? ' (Natural 1!)' : ''}`
+              text: `${currentCharacter.name} ${ability} saving throw${savingThrow.proficient ? ' (proficient)' : ''}${statusText}\n` +
+                    `Roll: ${hasAdvantage || hasDisadvantage ? `[${result.rolls.join(', ')}]` : result.rolls[0]} + ${savingThrow.modifier} = ${result.total}${result.natural20 ? ' (Natural 20!)' : ''}${result.natural1 ? ' (Natural 1!)' : ''}`
             }
           ]
         };
@@ -1452,14 +1632,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const { ability, proficient = true, advantage = false, disadvantage = false } = args as any;
         const abilityScore = currentCharacter.abilityScores[ability as keyof typeof currentCharacter.abilityScores];
-        const result = rollAttack(abilityScore.value, currentCharacter.proficiencyBonus, proficient, advantage, disadvantage);
+        
+        // Check for status effects that modify the roll
+        const characterEntity = currentCharacter as any;
+        const statusModifiers = getStatusModifiersForRoll(characterEntity, 'attack', ability);
+        
+        // Combine status effects with explicit advantage/disadvantage
+        const finalAdvantage = (advantage || statusModifiers.advantage) && !(disadvantage || statusModifiers.disadvantage);
+        const finalDisadvantage = (disadvantage || statusModifiers.disadvantage) && !(advantage || statusModifiers.advantage);
+        
+        const result = rollAttack(abilityScore.value, currentCharacter.proficiencyBonus, proficient, finalAdvantage, finalDisadvantage);
+
+        let statusText = '';
+        if (statusModifiers.advantage && !advantage) statusText += ' (advantage from status)';
+        if (statusModifiers.disadvantage && !disadvantage) statusText += ' (disadvantage from status)';
+        if (advantage) statusText += ' with advantage';
+        if (disadvantage) statusText += ' with disadvantage';
 
         return {
           content: [
             {
               type: 'text',
-              text: `${currentCharacter.name} ${ability}-based attack${proficient ? ' (proficient)' : ''}${advantage ? ' with advantage' : ''}${disadvantage ? ' with disadvantage' : ''}\n` +
-                    `Roll: ${result.rolls[0]} + ${abilityScore.modifier}${proficient ? ` + ${currentCharacter.proficiencyBonus}` : ''} = ${result.total}${result.natural20 ? ' (Natural 20! Critical Hit!)' : ''}${result.natural1 ? ' (Natural 1! Critical Miss!)' : ''}`
+              text: `${currentCharacter.name} ${ability}-based attack${proficient ? ' (proficient)' : ''}${statusText}\n` +
+                    `Roll: ${finalAdvantage || finalDisadvantage ? `[${result.rolls.join(', ')}]` : result.rolls[0]} + ${abilityScore.modifier}${proficient ? ` + ${currentCharacter.proficiencyBonus}` : ''} = ${result.total}${result.natural20 ? ' (Natural 20! Critical Hit!)' : ''}${result.natural1 ? ' (Natural 1! Critical Miss!)' : ''}`
             }
           ]
         };
@@ -3199,12 +3394,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const result = restManager.shortRest(hitDiceToSpend);
+        
+        // Apply short rest status effects
+        const characterEntity = currentCharacter as any;
+        const statusUpdatedEntity = applyShortRestStatus(characterEntity);
+        currentCharacter = statusUpdatedEntity as DNDCharacter;
+        
         await saveCharacter(currentCharacter);
         return {
           content: [
             {
               type: 'text',
-              text: result.message + (result.errors && result.errors.length > 0 ? `\nErrors: ${result.errors.join(', ')}` : '') + '\nCharacter saved to character.json'
+              text: result.message + (result.errors && result.errors.length > 0 ? `\nErrors: ${result.errors.join(', ')}` : '') + '\nStatus effects updated for short rest.\nCharacter saved to character.json'
             }
           ]
         };
@@ -3238,13 +3439,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const result = restManager.longRest();
+        
+        // Apply long rest status effects
+        const characterEntity = currentCharacter as any;
+        const statusUpdatedEntity = applyLongRestStatus(characterEntity);
+        currentCharacter = statusUpdatedEntity as DNDCharacter;
+        
         await saveCharacter(currentCharacter);
 
         return {
           content: [
             {
               type: 'text',
-              text: result.message + '\nCharacter saved to character.json'
+              text: result.message + '\nStatus effects updated for long rest.\nCharacter saved to character.json'
             }
           ]
         };
@@ -3650,6 +3857,246 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: archetypesText
+            }
+          ]
+        };
+      }
+
+      case 'apply_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { condition, source, duration, level, saveDC, saveType, canRepeatSave } = args as any;
+        
+        // Convert character to entity format for status system
+        const characterEntity = currentCharacter as any;
+        
+        const result = applyStatusEffect(characterEntity, condition as ConditionType, {
+          source,
+          duration,
+          level,
+          saveDC,
+          saveType,
+          canRepeatSave
+        });
+
+        if (result.result.success) {
+          // Update the current character with the modified entity
+          currentCharacter = result.entity as DNDCharacter;
+          await saveCharacter(currentCharacter);
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.result.message + 
+                    (result.result.warnings.length > 0 ? '\nWarnings: ' + result.result.warnings.join(', ') : '') +
+                    (result.result.removedEffects.length > 0 ? '\nRemoved effects: ' + result.result.removedEffects.map(e => e.name).join(', ') : '')
+            }
+          ]
+        };
+      }
+
+      case 'remove_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { condition } = args as any;
+        
+        // Convert character to entity format for status system
+        const characterEntity = currentCharacter as any;
+        
+        const result = removeStatusEffect(characterEntity, condition);
+
+        if (result.result.success) {
+          // Update the current character with the modified entity
+          currentCharacter = result.entity as DNDCharacter;
+          await saveCharacter(currentCharacter);
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.result.message
+            }
+          ]
+        };
+      }
+
+      case 'get_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const characterEntity = currentCharacter as any;
+        const activeConditions = getActiveConditions(characterEntity);
+
+        if (activeConditions.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${currentCharacter.name} has no active status conditions.`
+              }
+            ]
+          };
+        }
+
+        const conditionsText = activeConditions.map(condition => {
+          let text = `• ${condition.name}`;
+          if (condition.level) text += ` (Level ${condition.level})`;
+          if (condition.source) text += ` - Source: ${condition.source}`;
+          text += `\n  ${condition.description}`;
+          
+          // Duration info
+          if (condition.duration.type === 'rounds' && condition.duration.remaining) {
+            text += `\n  Duration: ${condition.duration.remaining} rounds remaining`;
+          } else if (condition.duration.type === 'minutes' && condition.duration.remaining) {
+            text += `\n  Duration: ${condition.duration.remaining} minutes remaining`;
+          } else if (condition.duration.type === 'hours' && condition.duration.remaining) {
+            text += `\n  Duration: ${condition.duration.remaining} hours remaining`;
+          } else if (condition.duration.type === 'until_long_rest') {
+            text += `\n  Duration: Until long rest`;
+          } else if (condition.duration.type === 'until_short_rest') {
+            text += `\n  Duration: Until short rest`;
+          } else if (condition.duration.type === 'concentration') {
+            text += `\n  Duration: Concentration`;
+          } else if (condition.duration.endCondition) {
+            text += `\n  Duration: ${condition.duration.endCondition}`;
+          }
+          
+          // Save info
+          if (condition.canRepeatSave && condition.saveType && condition.saveDC) {
+            text += `\n  Save: ${condition.saveType.toUpperCase()} DC ${condition.saveDC} to end`;
+          }
+          
+          return text;
+        }).join('\n\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `${currentCharacter.name}'s Active Status Conditions:\n\n${conditionsText}`
+            }
+          ]
+        };
+      }
+
+      case 'check_status': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { condition } = args as any;
+        const characterEntity = currentCharacter as any;
+        const hasConditionResult = hasCondition(characterEntity, condition);
+        const conditionEffect = getCondition(characterEntity, condition);
+
+        let text = `${currentCharacter.name} ${hasConditionResult ? 'has' : 'does not have'} the ${condition} condition.`;
+        
+        if (hasConditionResult && conditionEffect) {
+          text += `\n\nDetails: ${conditionEffect.description}`;
+          if (conditionEffect.level) {
+            text += `\nLevel: ${conditionEffect.level}`;
+          }
+          if (conditionEffect.source) {
+            text += `\nSource: ${conditionEffect.source}`;
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text
+            }
+          ]
+        };
+      }
+
+      case 'update_status_durations': {
+        if (!currentCharacter) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No character created yet. Use create_character to create one.'
+              }
+            ]
+          };
+        }
+
+        const { timeType } = args as any;
+        const characterEntity = currentCharacter as any;
+        
+        const originalConditions = getActiveConditions(characterEntity);
+        const updatedEntity = updateStatusDurations(characterEntity, timeType);
+        const remainingConditions = getActiveConditions(updatedEntity);
+        
+        const expiredConditions = originalConditions.filter(original => 
+          !remainingConditions.find(remaining => remaining.id === original.id)
+        );
+
+        // Update the current character with the modified entity
+        currentCharacter = updatedEntity as DNDCharacter;
+        await saveCharacter(currentCharacter);
+
+        let text = `Time advanced: ${timeType}`;
+        
+        if (expiredConditions.length > 0) {
+          text += `\n\nExpired conditions: ${expiredConditions.map(c => c.name).join(', ')}`;
+        }
+        
+        if (remainingConditions.length > 0) {
+          text += `\n\nRemaining conditions: ${remainingConditions.map(c => {
+            let name = c.name;
+            if (c.duration.remaining) name += ` (${c.duration.remaining} ${c.duration.type} left)`;
+            return name;
+          }).join(', ')}`;
+        }
+
+        if (remainingConditions.length === 0 && expiredConditions.length === 0) {
+          text += `\n\n${currentCharacter.name} has no active status conditions.`;
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text
             }
           ]
         };

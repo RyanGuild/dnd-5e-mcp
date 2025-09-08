@@ -1,4 +1,5 @@
 import { CharacterInventory } from './equipment';
+import { EntityStatus } from './status';
 
 export interface AbilityScore {
   value: number;
@@ -101,6 +102,7 @@ export interface DNDCharacter {
   inventory: CharacterInventory;
   equipmentProficiencies: string[];
   exhaustionLevel: number;
+  status?: EntityStatus;
 }
 
 export interface DiceRoll {

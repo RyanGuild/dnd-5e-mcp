@@ -14,6 +14,7 @@ A Model Context Protocol (MCP) server for managing D&D 5e characters, including 
 - **Equipment Stats**: Automatic calculation of AC, attack bonuses, and other equipment-based stats
 - **Resting System**: Complete short and long rest mechanics with hit dice spending and recovery
 - **Exhaustion Tracking**: Full exhaustion level system with effects and recovery
+- **Status Effects System**: Complete D&D 5e condition tracking with 15 official conditions
 - **Class Features**: Class-specific recovery during rests (Warlock spell slots, Fighter abilities, etc.)
 - **Hit Die Rolling**: Roll hit dice for healing during short rests
 
@@ -128,6 +129,30 @@ npm run dev
   - Explains healing potential with Constitution modifier
   - Example: Check how many hit dice are available for short rest healing
 
+#### Status Effects and Conditions
+
+- **apply_status**: Apply a D&D 5e condition to the current character
+  - Parameters: `condition`, `source` (optional), `duration` (optional), `level` (optional, for exhaustion), `saveDC` (optional), `saveType` (optional), `canRepeatSave` (optional)
+  - Supports all 15 official D&D 5e conditions: blinded, charmed, deafened, exhaustion, frightened, grappled, incapacitated, invisible, paralyzed, petrified, poisoned, prone, restrained, stunned, unconscious
+  - Example: Apply the poisoned condition from a spell with Constitution save DC 15
+
+- **remove_status**: Remove a status condition from the current character
+  - Parameters: `condition` (condition type or effect ID)
+  - Example: Remove the blinded condition
+
+- **get_status**: Get all active status conditions on the current character
+  - Shows detailed information about each condition including duration, source, and save requirements
+  - Example: View all active conditions and their effects
+
+- **check_status**: Check if the current character has a specific condition
+  - Parameters: `condition`
+  - Example: Check if the character is currently poisoned
+
+- **update_status_durations**: Update durations for timed status effects (advance time)
+  - Parameters: `timeType` (round, minute, hour)
+  - Automatically removes expired conditions and updates remaining durations
+  - Example: Advance time by one round to update condition durations
+
 #### Inventory Management
 
 - **add_item**: Add an item to the character's inventory
@@ -201,6 +226,7 @@ The server maintains a complete D&D 5e character with:
 - Hit points (current, maximum, temporary)
 - Hit dice (current, maximum, size based on class)
 - Exhaustion level (0-6 with cumulative effects)
+- Status effects system with all 15 D&D 5e conditions
 - Armor class, initiative, speed
 - Equipment, spells, features, languages
 - Experience points and notes
@@ -251,6 +277,53 @@ The server tracks exhaustion levels 0-6 with cumulative effects:
 - **Level 6**: Death - character dies
 
 The system automatically calculates effective stats based on exhaustion level and prevents resting when appropriate (e.g., can't short rest at exhaustion level 5+ due to 0 speed).
+
+## Status Effects System
+
+The server implements the complete D&D 5e condition system with all 15 official conditions:
+
+### Supported Conditions
+
+- **Blinded**: Can't see, automatic failure on sight-based checks, disadvantage on attacks, advantage for attacks against you
+- **Charmed**: Can't attack charmer, charmer has advantage on social interactions
+- **Deafened**: Can't hear, automatic failure on hearing-based checks
+- **Exhaustion**: 6 levels of increasing severity (see Exhaustion System above)
+- **Frightened**: Disadvantage on checks/attacks while source is visible, can't move closer to source
+- **Grappled**: Speed becomes 0, can't benefit from speed bonuses
+- **Incapacitated**: Can't take actions or reactions
+- **Invisible**: Heavily obscured for hiding, advantage on attacks, disadvantage for attacks against you
+- **Paralyzed**: Incapacitated, can't move/speak, auto-fail STR/DEX saves, advantage + crits on attacks within 5ft
+- **Petrified**: Turned to stone, incapacitated, can't move/speak, resistant to all damage, immune to poison/disease
+- **Poisoned**: Disadvantage on attack rolls and ability checks
+- **Prone**: Can only crawl, disadvantage on attacks, advantage for melee attacks against you
+- **Restrained**: Speed becomes 0, disadvantage on attacks, advantage for attacks against you, disadvantage on DEX saves
+- **Stunned**: Incapacitated, can't move, can speak falteringly, auto-fail STR/DEX saves, advantage for attacks against you
+- **Unconscious**: Incapacitated and prone, can't move/speak, unaware, auto-fail STR/DEX saves, advantage + crits on attacks within 5ft
+
+### Automatic Integration
+
+The status system automatically integrates with all dice rolling:
+
+- **Ability Checks**: Applies advantage/disadvantage and auto-failures based on active conditions
+- **Saving Throws**: Handles automatic failures for paralyzed, stunned, and unconscious conditions
+- **Attack Rolls**: Applies advantage/disadvantage from conditions like blinded, frightened, prone, etc.
+- **Skill Checks**: Considers condition effects on relevant ability checks
+
+### Duration Management
+
+Conditions support various duration types:
+- **Timed**: Specific number of rounds, minutes, or hours
+- **Until Rest**: Lasts until short rest or long rest
+- **Concentration**: Lasts while caster maintains concentration
+- **Custom**: Ends based on specific conditions or DM discretion
+
+### Condition Stacking and Interactions
+
+The system handles D&D 5e condition rules:
+- Most conditions don't stack (can't be blinded twice)
+- Exhaustion stacks up to level 6 (death)
+- Some conditions include others (unconscious includes prone and incapacitated)
+- Conditions are automatically removed when conflicting conditions are applied
 
 ## Example Usage
 
@@ -332,6 +405,40 @@ The system automatically calculates effective stats based on exhaustion level an
 {}
 ```
 
+10. Apply a status condition (poisoned from a spell):
+```json
+{
+  "condition": "poisoned",
+  "source": "Poison Spray cantrip",
+  "duration": {
+    "type": "rounds",
+    "remaining": 3
+  },
+  "saveDC": 13,
+  "saveType": "constitution",
+  "canRepeatSave": true
+}
+```
+
+11. Check active status conditions:
+```json
+{}
+```
+
+12. Remove a status condition:
+```json
+{
+  "condition": "poisoned"
+}
+```
+
+13. Update condition durations (advance time):
+```json
+{
+  "timeType": "round"
+}
+```
+
 ## Development
 
 The project is built with TypeScript and uses the Model Context Protocol SDK. The server runs on stdio transport and can be integrated with MCP-compatible clients.
@@ -340,12 +447,15 @@ The project is built with TypeScript and uses the Model Context Protocol SDK. Th
 
 - `src/index.ts` - Main MCP server implementation
 - `src/types/character.ts` - TypeScript interfaces for D&D character data
+- `src/types/entity.ts` - Entity system for characters, NPCs, and monsters
+- `src/types/status.ts` - Status effects and condition type definitions
 - `src/utils/character.ts` - Character creation and calculation utilities
 - `src/utils/dice.ts` - Dice rolling and game mechanics utilities
 - `src/utils/rest.ts` - Resting system and exhaustion management
 - `src/utils/inventory.ts` - Inventory and equipment management
 - `src/utils/storage.ts` - Character persistence and file management
 - `src/utils/fighter.ts` - Fighter class-specific features and abilities
+- `src/utils/status.ts` - Status effects application and management
 - `src/data/classes.ts` - Class data structures and Fighting Styles
 
 ### Building
