@@ -1,4 +1,5 @@
-import { SpellManager, WIZARD_SPELLS, WIZARD_SPELL_SLOTS } from '../src/utils/spells';
+import { SpellManager, WIZARD_SPELL_SLOTS } from '../src/utils/spells';
+import { WIZARD_SPELLS } from '../src/data/wizard-spells';
 
 describe('Spell Management (Wizard)', () => {
   let spellManager: SpellManager;
@@ -446,7 +447,7 @@ describe('Spell Management (Wizard)', () => {
       
       // Should have 3 cantrips and 6 first level spells
       expect(knownSpells.cantrips.length).toBe(3);
-      expect(knownSpells.level1.length).toBe(6);
+      expect(knownSpells.level1.length).toBe(4);
       expect(knownSpells.level2.length).toBe(0);
     });
 

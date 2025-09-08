@@ -1,4 +1,5 @@
 import { DNDCharacter, AbilityScores } from './character.js';
+import { EntityStatus } from './status.js';
 
 export type EntityType = 'character' | 'npc' | 'monster';
 
@@ -23,6 +24,7 @@ export interface BaseEntity {
     burrow?: number;
   };
   notes: string;
+  status?: EntityStatus;
   created: Date;
   modified: Date;
 }
