@@ -1,0 +1,96 @@
+# D&D 5e Character MCP Server
+
+This project contains a Model Context Protocol (MCP) server for managing D&D 5e characters, including character creation, dice rolling, and inventory management.
+
+## MCP Server Configuration
+
+To use this MCP server with Cursor, add the following to your Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "dnd-character": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/Users/ryanguild/dnd-character-mcp",
+      "enabled": true,
+      "alwaysAllow": [
+        "create_character",
+        "get_character",
+        "update_character",
+        "delete_character",
+        "add_item",
+        "remove_item",
+        "equip_item",
+        "unequip_item",
+        "get_inventory",
+        "search_items",
+        "get_equipment_stats",
+        "roll_dice",
+        "roll_ability_check",
+        "roll_saving_throw",
+        "roll_skill_check",
+        "roll_attack",
+        "roll_damage",
+        "roll_hit_die"
+      ]
+    }
+  }
+}
+```
+
+## Available Tools
+
+### Character Management
+- `create_character` - Create a new D&D 5e character
+- `get_character` - Get current character information
+- `update_character` - Update character information
+- `delete_character` - Delete the current character
+
+### Inventory Management
+- `add_item` - Add an item to the character's inventory
+- `remove_item` - Remove an item from the character's inventory
+- `equip_item` - Equip an item from the character's inventory
+- `unequip_item` - Unequip an item from the character's inventory
+- `get_inventory` - Get the character's inventory and equipped items
+- `search_items` - Search for weapons, armor, or equipment
+- `get_equipment_stats` - Get calculated equipment stats
+
+### Dice Rolling
+- `roll_dice` - Roll dice with optional modifiers
+- `roll_ability_check` - Roll an ability check for the current character
+- `roll_saving_throw` - Roll a saving throw for the current character
+- `roll_skill_check` - Roll a skill check for the current character
+- `roll_attack` - Roll an attack roll for the current character
+- `roll_damage` - Roll damage dice
+- `roll_hit_die` - Roll hit dice for healing
+
+## Usage Examples
+
+### Create a Character
+```
+Create a level 3 Human Fighter named "Aragorn" with 16 Strength, 14 Dexterity, 15 Constitution, 12 Intelligence, 13 Wisdom, and 10 Charisma.
+```
+
+### Add Equipment
+```
+Add a longsword, chain mail armor, and shield to my character's inventory and equip them.
+```
+
+### Roll Dice
+```
+Roll a d20 with advantage for a Strength check.
+```
+
+### Search Items
+```
+Search for all sword-type weapons available.
+```
+
+## Development
+
+- **Build**: `npm run build`
+- **Start**: `npm start`
+- **Dev**: `npm run dev`
+
+The server automatically saves character data to `character.json` and loads it on startup.

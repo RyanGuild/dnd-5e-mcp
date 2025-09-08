@@ -1,0 +1,27 @@
+{
+  "name": "dnd-character-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for D&D 5e character management",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "watch": "tsx watch src/index.ts"
+  },
+  "keywords": ["mcp", "dnd", "dungeons-and-dragons", "character", "rpg"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/cheerio": "^0.22.31",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

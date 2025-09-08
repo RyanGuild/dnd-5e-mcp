@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "dnd-character": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/Users/ryanguild/dnd-character-mcp",
+      "enabled": true,
+      "alwaysAllow": [
+        "create_character",
+        "get_character",
+        "update_character",
+        "delete_character",
+        "add_item",
+        "remove_item",
+        "equip_item",
+        "unequip_item",
+        "get_inventory",
+        "search_items",
+        "get_equipment_stats",
+        "roll_dice",
+        "roll_ability_check",
+        "roll_saving_throw",
+        "roll_skill_check",
+        "roll_attack",
+        "roll_damage",
+        "roll_hit_die",
+        "list_attacks",
+        "validate_character"
+      ]
+    }
+  }
+}
