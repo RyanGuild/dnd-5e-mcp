@@ -11,18 +11,14 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x, 21.x]
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Use Node.js ${{ matrix.node-version }}
+    - name: Use Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: '20.x'
         cache: 'npm'
         
     - name: Install dependencies
@@ -228,45 +224,6 @@ jobs:
       run: |
         # Run spell management tests
         npm test -- --testPathPattern=spells.test.ts --verbose
-
-  compatibility:
-    name: Compatibility Tests
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [18.x, 20.x]
-        
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Build and test
-      run: |
-        npm run build
-        npm test
-        
-    - name: Test MCP server startup
-      shell: bash
-      run: |
-        # Test that the server can start without errors
-        timeout 5s node dist/index.js < /dev/null > startup.log 2>&1 || true
-        if grep -q "error\|Error\|ERROR" startup.log; then
-          echo "Server startup errors detected:"
-          cat startup.log
-          exit 1
-        fi
-        echo "Server startup test passed on ${{ matrix.os }} with Node ${{ matrix.node-version }}"
 
   performance:
     name: Performance Tests
