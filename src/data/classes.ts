@@ -6,6 +6,7 @@ export interface ClassFeature {
   uses?: number;
   usesType?: 'per_rest' | 'per_long_rest' | 'per_short_rest' | 'per_day';
   rechargeOn?: 'short_rest' | 'long_rest';
+  optional?: boolean;
 }
 
 export interface FightingStyle {
